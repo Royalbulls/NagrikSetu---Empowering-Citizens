@@ -1,7 +1,7 @@
 
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getDatabase, ref, onValue, set, push, query, orderByChild, limitToLast, get, Database, update } from "firebase/database";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Auth } from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Auth, updateProfile } from "firebase/auth";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, AppCheck } from "firebase/app-check";
 import { LeaderboardEntry, UserState, ContestHistory, SearchEntry } from "../types";
 
@@ -34,13 +34,8 @@ const initialize = () => {
     initError = null;
 
     // 2. Intelligent Security Layer Gating
-    // We only enable App Check on domains authorized in the reCAPTCHA console.
-    // This prevents the "appCheck/recaptcha-error" on preview domains like .firebasestorage.app
     const hostname = window.location.hostname;
     const isProdDomain = hostname.endsWith('firebaseapp.com') || hostname.endsWith('web.app');
-    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-    
-    // Proactively skip if we are in a sandboxed preview environment
     const isPreview = hostname.includes('firebasestorage.app') || hostname.includes('preview');
 
     if (isProdDomain && !isPreview) {
@@ -90,9 +85,11 @@ export const firebaseService = {
     throw new Error("Cloud Auth Unavailable (Network or Init Error)");
   },
 
-  async signUpWithEmail(email: string, pass: string) {
+  async signUpWithEmail(email: string, pass: string, name: string) {
     if (auth && isLive) {
-      return await createUserWithEmailAndPassword(auth, email, pass);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      await updateProfile(userCredential.user, { displayName: name });
+      return userCredential;
     }
     throw new Error("Cloud Sign-up Unavailable");
   },
