@@ -1,0 +1,9 @@
+{
+  "name": "NagrikSetu - Empowering Citizens",
+  "description": "NagrikSetu is a unique platform for learning Global History and Indian Law, designed to empower every citizen with knowledge and legal awareness using AI.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

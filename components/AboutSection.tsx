@@ -1,0 +1,88 @@
+
+import React from 'react';
+
+const AboutSection: React.FC = () => {
+  return (
+    <div className="space-y-12 animate-fadeIn pb-24">
+      {/* Hero Banner */}
+      <div className="bg-slate-900 rounded-[3rem] p-12 border border-blue-500/20 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none scale-150">
+          <i className="fas fa-users-gear text-[200px] text-blue-500"></i>
+        </div>
+        <div className="relative z-10 space-y-6 max-w-4xl">
+          <h2 className="text-5xl font-black text-white tracking-tighter uppercase leading-tight">
+            NagrikSetu के <span className="text-blue-500">फाउंडर्स</span> और विज़न
+          </h2>
+          <p className="text-slate-300 text-xl font-medium leading-relaxed">
+            "नागरिक सेतु" (NagrikSetu) केवल एक ऐप नहीं, बल्कि एक आधुनिक लोकतांत्रिक आंदोलन है। हमारा उद्देश्य तकनीक (AI) के माध्यम से हर उस नागरिक तक पहुँच बनाना है जो अपने अधिकारों और इतिहास से वंचित है।
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+        {/* Founder 1 */}
+        <div className="bg-slate-900 p-10 rounded-[3rem] border border-white/5 shadow-xl space-y-6 hover:border-blue-500/30 transition-all group">
+          <div className="w-24 h-24 bg-blue-500 rounded-[2rem] flex items-center justify-center text-slate-950 text-4xl shadow-2xl group-hover:scale-110 transition-transform">
+            <i className="fas fa-user-tie"></i>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-3xl font-black text-white italic">Founder & Visionary</h3>
+            <p className="text-blue-500 font-black uppercase tracking-widest text-xs">The Architect of NagrikSetu</p>
+          </div>
+          <p className="text-slate-400 text-lg leading-relaxed">
+            इन्होंने इस डिजिटल सेतु की नींव रखी ताकि दुनिया भर का ज्ञान, विशेषकर कानून और इतिहास, एक साधारण मोबाइल यूज़र की पहुँच में हो। 
+          </p>
+        </div>
+
+        {/* Founder 2/Team */}
+        <div className="bg-slate-900 p-10 rounded-[3rem] border border-white/5 shadow-xl space-y-6 hover:border-amber-500/30 transition-all group">
+          <div className="w-24 h-24 bg-amber-500 rounded-[2rem] flex items-center justify-center text-slate-950 text-4xl shadow-2xl group-hover:scale-110 transition-transform">
+            <i className="fas fa-handshake"></i>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-3xl font-black text-white italic">Co-Founder & Team</h3>
+            <p className="text-amber-500 font-black uppercase tracking-widest text-xs">Collaborators in Success</p>
+          </div>
+          <p className="text-slate-400 text-lg leading-relaxed">
+            हमारा को-फाउंडर ग्रुप और टेक्निकल टीम दिन-रात इस कोशिश में रहती है कि एआई (AI) को मानवीय संवेदनाओं और स्थानीय भाषाओं के साथ जोड़ा जा सके।
+          </p>
+        </div>
+      </div>
+
+      {/* Company Philosophy */}
+      <div className="bg-slate-900/50 p-12 rounded-[4rem] border border-white/5 relative overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10">
+           <div className="space-y-4">
+              <i className="fas fa-eye text-blue-500 text-3xl"></i>
+              <h4 className="text-xl font-black text-white uppercase">विज़न (Vision)</h4>
+              <p className="text-slate-400 text-sm leading-relaxed">भारत के हर गाँव और शहर को एक 'जागरूक नागरिक केंद्र' बनाना जहाँ कानून की जानकारी उंगलियों पर हो।</p>
+           </div>
+           <div className="space-y-4 border-y lg:border-y-0 lg:border-x border-white/5 py-8 lg:py-0 lg:px-8">
+              <i className="fas fa-bullseye text-amber-500 text-3xl"></i>
+              <h4 className="text-xl font-black text-white uppercase">मिशन (Mission)</h4>
+              <p className="text-slate-400 text-sm leading-relaxed">इतिहास की भूलों को सुधारना और भविष्य के लिए एक ऐसी पीढ़ी तैयार करना जो तर्कों और तथ्यों पर आधारित हो।</p>
+           </div>
+           <div className="space-y-4">
+              <i className="fas fa-shield-halved text-emerald-500 text-3xl"></i>
+              <h4 className="text-xl font-black text-white uppercase">मूल्य (Values)</h4>
+              <p className="text-slate-400 text-sm leading-relaxed">सत्य, पारदर्शिता, और तकनीक का समावेशी उपयोग। हम डेटा प्राइवेसी और मानवीय सम्मान को सर्वोपरि रखते हैं।</p>
+           </div>
+        </div>
+      </div>
+
+      {/* Connect Section */}
+      <div className="bg-blue-600 rounded-[3rem] p-12 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8">
+        <div className="space-y-2">
+           <h3 className="text-3xl font-black text-white">NagrikSetu से जुड़ें</h3>
+           <p className="text-blue-100 font-medium">क्या आपके पास हमारे लिए कोई सुझाव है? हम आपकी बात सुनना चाहते हैं।</p>
+        </div>
+        <div className="flex gap-4">
+           <a href="mailto:support@nagriksetu.ai" className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all">Email Us</a>
+           <button className="bg-slate-950 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all">Partner with Us</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AboutSection;
