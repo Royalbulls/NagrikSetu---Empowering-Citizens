@@ -53,14 +53,9 @@ const Auth: React.FC<AuthProps> = ({ onGuestAccess }) => {
     console.error("Auth Exception:", err);
     if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
       setUnauthorizedDomain(window.location.hostname);
-      setError("Domain Unauthorized: Authentication blocked by Firebase security.");
+      setError("यह डोमेन Firebase में ऑथराइज़ नहीं है। (This domain is not authorized in Firebase).");
     } else {
-      setError(err.message || "Cloud Handshake Failed. Connection interrupted.");
-    }
-    
-    // Attempt auto-recovery of core service if it's reporting offline
-    if (!firebaseService.isCloudConnected()) {
-      firebaseService.retryConnection();
+      setError(err.message || "क्लाउड कनेक्शन में समस्या आई है।");
     }
   };
 
@@ -120,14 +115,14 @@ const Auth: React.FC<AuthProps> = ({ onGuestAccess }) => {
             <div className="flex items-start">
               <i className="fas fa-circle-exclamation mt-1 mr-3 text-sm"></i>
               <div className="flex-1">
-                <p className="font-bold mb-1">Configuration Required</p>
+                <p className="font-bold mb-1">Configuration Error</p>
                 <p className="opacity-80 leading-relaxed">{error}</p>
               </div>
             </div>
             
             {unauthorizedDomain && (
               <div className="bg-slate-950/80 p-4 rounded-2xl border border-rose-500/20 space-y-3">
-                <p className="text-[8px] text-white/50">To fix this, add the following to Firebase Console > Authentication > Settings > Authorized Domains:</p>
+                <p className="text-[8px] text-white/50">Firebase Console में जाकर यह डोमेन जोड़ें:</p>
                 <div className="flex items-center justify-between bg-black/40 p-2 rounded-lg border border-white/5">
                   <code className="text-amber-500 lowercase text-[10px] truncate">{unauthorizedDomain}</code>
                   <button 
@@ -142,60 +137,49 @@ const Auth: React.FC<AuthProps> = ({ onGuestAccess }) => {
                 </div>
               </div>
             )}
-
-            {/* HIGH PRIORITY BYPASS BUTTON */}
-            <button 
-              onClick={onGuestAccess}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-xl shadow-emerald-500/10 flex items-center justify-center space-x-3 active:scale-95"
-            >
-              <i className="fas fa-graduation-cap text-sm"></i>
-              <span>Start Learning as Guest</span>
-            </button>
           </div>
         )}
 
-        {!error && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <input 
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-slate-700 font-medium text-sm animate-slideUp"
-                placeholder="आपका पूरा नाम (Full Name)"
-              />
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
             <input 
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
-              className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-slate-700 font-medium text-sm"
-              placeholder="आपका ईमेल (Email)"
+              className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-slate-700 font-medium text-sm animate-slideUp"
+              placeholder="आपका पूरा नाम (Full Name)"
             />
-            <input 
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-slate-700 font-medium text-sm"
-              placeholder="पासवर्ड (Password)"
-            />
+          )}
+          <input 
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-slate-700 font-medium text-sm"
+            placeholder="ईमेल (Email ID)"
+          />
+          <input 
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-slate-700 font-medium text-sm"
+            placeholder="पासवर्ड (Password)"
+          />
 
-            <button 
-              type="submit"
-              disabled={loading}
-              className="w-full bg-amber-500 text-slate-950 py-4 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-amber-400 shadow-2xl transition-all h-14 flex items-center justify-center disabled:opacity-50 active:scale-95 text-xs"
-            >
-              {loading ? <i className="fas fa-circle-notch fa-spin text-lg"></i> : (isLogin ? 'Login Now' : 'Sign Up')}
-            </button>
-          </form>
-        )}
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full bg-amber-500 text-slate-950 py-4 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-amber-400 shadow-2xl transition-all h-14 flex items-center justify-center disabled:opacity-50 active:scale-95 text-xs"
+          >
+            {loading ? <i className="fas fa-circle-notch fa-spin text-lg"></i> : (isLogin ? 'Login Now' : 'Sign Up')}
+          </button>
+        </form>
 
         <div className="mt-8 flex items-center space-x-4">
           <div className="h-[1px] bg-white/5 flex-1"></div>
-          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Or Access Path</span>
+          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Alternative</span>
           <div className="h-[1px] bg-white/5 flex-1"></div>
         </div>
 
@@ -206,23 +190,21 @@ const Auth: React.FC<AuthProps> = ({ onGuestAccess }) => {
             className="w-full bg-slate-800 border border-white/5 text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-750 transition-all flex items-center justify-center space-x-4 h-14 shadow-xl active:scale-95 text-[9px]"
           >
             <i className="fab fa-google text-amber-500 text-lg"></i>
-            <span>Google Authentication</span>
+            <span>Google Login</span>
           </button>
 
-          {!error && (
-            <button 
-              onClick={onGuestAccess}
-              disabled={loading}
-              className="w-full bg-transparent border-2 border-slate-700 text-slate-400 py-4 rounded-2xl font-black uppercase tracking-widest hover:border-amber-500/50 hover:text-amber-500 transition-all flex items-center justify-center space-x-4 h-14 active:scale-95 text-[9px] group"
-            >
-              <i className="fas fa-user-secret text-lg group-hover:text-amber-500 transition-colors"></i>
-              <span>Anonymous Scholar Mode</span>
-            </button>
-          )}
+          <button 
+            onClick={onGuestAccess}
+            disabled={loading}
+            className="w-full bg-transparent border-2 border-slate-700 text-slate-400 py-4 rounded-2xl font-black uppercase tracking-widest hover:border-amber-500/50 hover:text-amber-500 transition-all flex items-center justify-center space-x-4 h-14 active:scale-95 text-[9px] group"
+          >
+            <i className="fas fa-user-secret text-lg group-hover:text-amber-500 transition-colors"></i>
+            <span>Guest Access (Bypass)</span>
+          </button>
         </div>
 
         <p className="text-center mt-10 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
-          {isLogin ? "New to the hub?" : "Already a member?"}{' '}
+          {isLogin ? "No account?" : "Have an account?"}{' '}
           <button 
             onClick={() => setIsLogin(!isLogin)}
             className="text-amber-500 hover:text-amber-400 ml-2 font-black underline decoration-2 underline-offset-4"

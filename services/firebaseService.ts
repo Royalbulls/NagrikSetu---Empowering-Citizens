@@ -24,16 +24,13 @@ let initError: string | null = null;
 
 const initialize = () => {
   try {
-    // 1. Core Handshake - Independent of security layer
     const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getDatabase(app);
     
-    // Core is active immediately
     isLive = true;
     initError = null;
 
-    // 2. Intelligent Security Layer Gating
     const hostname = window.location.hostname;
     const isProdDomain = hostname.endsWith('firebaseapp.com') || hostname.endsWith('web.app');
     const isPreview = hostname.includes('firebasestorage.app') || hostname.includes('preview');
@@ -46,10 +43,8 @@ const initialize = () => {
         });
         console.log("NagrikSetu Security: Production App Check Active.");
       } catch (acErr: any) {
-        console.warn("NagrikSetu Security: App Check initialization skipped or failed internally.");
+        console.warn("NagrikSetu Security: App Check initialization deferred.");
       }
-    } else {
-      console.log(`NagrikSetu Security: App Check deferred (Environment: ${hostname}).`);
     }
 
     console.log("NagrikSetu Cloud: Uplink Online.");
@@ -60,7 +55,6 @@ const initialize = () => {
   }
 };
 
-// Start initialization immediately
 initialize();
 
 const MOCK_USER_PREFIX = 'nagriksetu_user_';
@@ -82,7 +76,7 @@ export const firebaseService = {
       provider.setCustomParameters({ prompt: 'select_account' });
       return await signInWithPopup(auth, provider);
     }
-    throw new Error("Cloud Auth Unavailable (Network or Init Error)");
+    throw new Error("Cloud Auth Unavailable");
   },
 
   async signUpWithEmail(email: string, pass: string, name: string) {
