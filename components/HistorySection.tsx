@@ -1,201 +1,158 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { geminiService } from '../services/geminiService';
 import ReactMarkdown from 'https://esm.sh/react-markdown';
-import { LocalContext } from '../types';
+import { LocalContext, TimelineEvent, SavedSession } from '../types';
 
 // Audio Helpers
-function encode(bytes: Uint8Array) {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
   }
-  return btoa(binary);
+  return buffer;
 }
 
 interface HistorySectionProps {
   onUpdatePoints: (amount: number) => void;
   onSearch?: (query: string) => void;
   context: LocalContext;
+  onDraftApplication?: (subject: string, details: string) => void;
 }
 
-const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearch, context }) => {
+const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearch, context, onDraftApplication }) => {
   const [query, setQuery] = useState('');
-  const [isEraCompareMode, setIsEraCompareMode] = useState(true); // Default to True
   const [response, setResponse] = useState('');
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [pointsAwarded, setPointsAwarded] = useState<number | null>(null);
-  const recognitionSessionRef = useRef<any>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const handleAsk = async (mode: 'deep' | 'news') => {
-    if (!query) return;
+  const triggerPointsAnimation = (amount: number) => {
+    const div = document.createElement('div');
+    div.className = 'point-float';
+    div.innerText = `+${amount}`;
+    div.style.left = `${window.innerWidth / 2}px`;
+    div.style.top = `${window.innerHeight / 2}px`;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 1500);
+  };
+
+  const handleAsk = async (mode: 'deep' | 'timeline', forcedQuery?: string) => {
+    const activeQuery = forcedQuery || query;
+    if (!activeQuery) return;
     setLoading(true);
     setResponse('');
-    setPointsAwarded(null);
-    if (onSearch) onSearch(query);
+    setTimelineEvents([]);
+    setFeedbackSent(false);
+    if (onSearch) onSearch(activeQuery);
 
     try {
-      let result;
       let points = 0;
-      if (isEraCompareMode) {
-        result = await geminiService.askEraComparison(query, context);
-        points = 60; // Rewarding Era Comparison even more
-      } else if (mode === 'news') {
-        result = await geminiService.searchCurrentEvents(query, context);
-        points = 25;
+      if (mode === 'timeline') {
+        const events = await geminiService.getQueryTimeline(activeQuery, context);
+        setTimelineEvents(events);
+        points = 50;
       } else {
-        result = await geminiService.askComplexQuestion(query, context);
-        points = 30;
+        const result = await geminiService.askEraComparison(activeQuery, context);
+        setResponse(result.text || "विवरण प्राप्त नहीं हुआ।");
+        points = 60;
       }
-      setResponse(result.text || "इतिहास का पन्ना अभी खाली है।");
       onUpdatePoints(points);
-      setPointsAwarded(points);
-      setTimeout(() => setPointsAwarded(null), 3000);
+      triggerPointsAnimation(points);
     } catch (error: any) {
-      setResponse(error?.message === 'SYSTEM_BUSY' 
-        ? "AI सिस्टम फिलहाल व्यस्त है। कृपया 1 मिनट बाद दोबारा प्रयास करें।" 
-        : "ज्ञान के सेतु में बाधा आई है।");
+      setResponse("इतिहास के सेतु से जुड़ने में त्रुटि हुई।");
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleVoiceInput = async () => {
-    if (isListening) {
-      if (recognitionSessionRef.current) recognitionSessionRef.current.close();
-      setIsListening(false);
+  const handleSpeech = async () => {
+    if (isSpeaking) {
+      if (sourceRef.current) sourceRef.current.stop();
+      setIsSpeaking(false);
       return;
     }
-    setIsListening(true);
+    if (!response) return;
+    setIsSpeaking(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const inputContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-        callbacks: {
-          onopen: () => {
-            const source = inputContext.createMediaStreamSource(stream);
-            const scriptProcessor = inputContext.createScriptProcessor(4096, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const pcmBlob = { data: encode(new Uint8Array(new Int16Array(inputData.map(v => v * 32768)).buffer)), mimeType: 'audio/pcm;rate=16000' };
-              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob }));
-            };
-            source.connect(scriptProcessor);
-            scriptProcessor.connect(inputContext.destination);
-          },
-          onmessage: (msg) => {
-            if (msg.serverContent?.inputTranscription) {
-              setQuery(prev => (prev.trim() + ' ' + msg.serverContent.inputTranscription.text).trim());
-            }
-          },
-          onclose: () => setIsListening(false),
-          onerror: () => setIsListening(false),
-        },
-        config: { responseModalities: [Modality.AUDIO], inputAudioTranscription: {} }
-      });
-      recognitionSessionRef.current = await sessionPromise;
-    } catch (err) { setIsListening(false); }
+      const audioBytes = await geminiService.speak(response, 'Kore');
+      if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      const ctx = audioContextRef.current;
+      const buffer = await decodeAudioData(audioBytes, ctx, 24000, 1);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.onended = () => setIsSpeaking(false);
+      sourceRef.current = source;
+      source.start(0);
+    } catch (e) { setIsSpeaking(false); }
+  };
+
+  const handleFeedback = (val: boolean) => {
+    if (feedbackSent) return;
+    setFeedbackSent(true);
+    if (val) {
+      onUpdatePoints(10);
+      triggerPointsAnimation(10);
+    }
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-24 relative">
-      {pointsAwarded && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 px-8 py-3 rounded-2xl font-black shadow-2xl animate-bounce flex items-center space-x-3">
-          <i className="fas fa-history"></i>
-          <span>+{pointsAwarded} History Scholar Points!</span>
-        </div>
-      )}
-
-      <div className="bg-slate-900 rounded-[3rem] p-10 shadow-2xl border border-amber-500/10 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none scale-150 rotate-12">
-          <i className="fas fa-scroll text-[200px] text-amber-500"></i>
-        </div>
-
-        <div className="relative z-10 space-y-8">
-          <div className="flex items-center space-x-6">
-             <div className="w-16 h-16 bg-amber-500 rounded-3xl flex items-center justify-center text-slate-950 shadow-2xl">
-                <i className="fas fa-monument text-2xl"></i>
-             </div>
-             <div>
-                <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic">ग्लोबल इतिहास <span className="text-amber-500">Explorer</span></h3>
-                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1">तुलना करें: पहिले और संविधान के बाद</p>
-             </div>
-          </div>
-
-          <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 flex items-center justify-between">
-             <div className="flex items-center space-x-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isEraCompareMode ? 'bg-orange-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}>
-                  <i className="fas fa-clock-rotate-left"></i>
-                </div>
-                <div>
-                  <p className="text-xs font-black text-white uppercase tracking-widest">Pehle vs Aaj (Era Comparison)</p>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">पहिले की दुनिया और आज का कानून</p>
-                </div>
-             </div>
-             <button 
-                onClick={() => setIsEraCompareMode(!isEraCompareMode)}
-                className={`w-16 h-8 rounded-full transition-all relative ${isEraCompareMode ? 'bg-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-slate-800'}`}
-              >
-                <div className={`absolute top-1.5 w-5 h-5 bg-white rounded-full transition-all ${isEraCompareMode ? 'right-1.5' : 'left-1.5'}`}></div>
-              </button>
-          </div>
-
-          <div className="relative">
-            <textarea
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={isEraCompareMode ? "किसी विषय का नाम लिखें (उदा: न्याय, शिक्षा, व्यापार, कृषि)..." : "इतिहास का कोई भी सवाल पूछें..."}
-              className="w-full bg-slate-950/80 border border-amber-900/20 rounded-[2rem] p-10 text-white text-xl placeholder:text-slate-700 outline-none focus:ring-4 focus:ring-amber-500/10 transition-all min-h-[180px]"
-            />
-            <button 
-              onClick={toggleVoiceInput}
-              className={`absolute top-10 right-10 w-16 h-16 rounded-3xl flex items-center justify-center transition-all ${isListening ? 'bg-rose-500 text-white animate-pulse' : 'bg-slate-800 text-amber-500 hover:bg-slate-750'}`}
-            >
-              <i className={`fas ${isListening ? 'fa-microphone-lines' : 'fa-microphone'} text-2xl`}></i>
-            </button>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-6">
-             <button
-              onClick={() => handleAsk('deep')}
-              disabled={loading || !query}
-              className="flex-1 bg-amber-500 text-slate-950 py-6 rounded-3xl font-black uppercase tracking-widest hover:bg-amber-400 shadow-xl flex items-center justify-center space-x-4 border-b-4 border-amber-700 active:translate-y-1 transition-all"
-             >
-                <i className="fas fa-brain text-xl"></i>
-                <span>{isEraCompareMode ? 'तुलना देखें (Analyze)' : 'गहरा इतिहास (Pehle)'}</span>
-             </button>
-             <button
-              onClick={() => handleAsk('news')}
-              disabled={loading || !query}
-              className="flex-1 bg-slate-800 text-amber-500 border border-amber-500/20 py-6 rounded-3xl font-black uppercase tracking-widest hover:bg-slate-750 flex items-center justify-center space-x-4 border-b-4 border-slate-900 active:translate-y-1 transition-all"
-             >
-                <i className="fas fa-earth-asia text-xl"></i>
-                <span>आज क्या चल रहा है? (Live)</span>
-             </button>
+    <div className="space-y-12 animate-fadeIn pb-32">
+      <div className="bg-slate-900 rounded-[3.5rem] p-10 border border-amber-500/10 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none rotate-12"><i className="fas fa-monument text-[250px] text-white"></i></div>
+        <div className="relative z-10 space-y-10">
+          <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter leading-none">पहिले और <span className="text-amber-500">आज</span></h2>
+          <textarea
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="किसी ऐतिहासिक घटना या पुरानी व्यवस्था के बारे में पूछें..."
+            className="w-full bg-slate-950 border-2 border-amber-900/20 rounded-[2.5rem] p-10 text-white text-xl placeholder:text-slate-800 outline-none focus:border-amber-500/30 transition-all min-h-[160px]"
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <button onClick={() => handleAsk('deep')} disabled={loading || !query} className="bg-amber-500 text-slate-950 py-6 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-amber-400 shadow-xl transition-all">युग तुलना विश्लेषण</button>
+             <button onClick={() => handleAsk('timeline')} disabled={loading || !query} className="bg-emerald-600 text-white py-6 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-emerald-500 shadow-xl transition-all">ऐतिहासिक कालक्रम</button>
           </div>
         </div>
       </div>
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-20 space-y-6 animate-fadeIn">
-          <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-amber-500 font-black uppercase tracking-[0.4em] animate-pulse text-xs">इतिहास की कड़ियों को जोड़ा जा रहा है...</p>
-        </div>
-      )}
+      {loading && <div className="flex justify-center py-20"><i className="fas fa-history fa-spin text-amber-500 text-4xl"></i></div>}
 
       {response && !loading && (
-        <div className="bg-slate-900 rounded-[4rem] p-12 shadow-2xl border border-amber-500/10 animate-slideUp relative overflow-hidden history-content">
-           <div className="prose prose-invert prose-amber max-w-none text-slate-200 text-xl leading-relaxed mb-6 font-medium">
+        <div className="bg-slate-900 rounded-[4rem] p-10 md:p-16 shadow-3xl border border-amber-500/10 animate-slideUp relative overflow-hidden">
+           <div className="flex flex-wrap justify-between items-center mb-10 gap-6">
+              <div className="flex space-x-3">
+                 <button onClick={handleSpeech} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isSpeaking ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-500 border border-amber-500/20'}`}>
+                    <i className={`fas ${isSpeaking ? 'fa-stop-circle' : 'fa-volume-high'}`}></i>
+                    <span>{isSpeaking ? 'सुनना बंद करें' : 'सुनें (Listen)'}</span>
+                 </button>
+                 <button onClick={() => { navigator.clipboard.writeText(response); setCopied(true); setTimeout(()=>setCopied(false), 2000); }} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                    <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
+                    <span>{copied ? 'कॉपी हो गया' : 'कॉपी करें'}</span>
+                 </button>
+              </div>
+              <button onClick={() => onDraftApplication?.(query, response)} className="bg-amber-500 text-slate-950 px-8 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg">आवेदन पत्र में बदलें</button>
+           </div>
+           <div className="prose prose-invert prose-amber max-w-none text-slate-200 text-xl leading-relaxed mb-12">
               <ReactMarkdown>{response}</ReactMarkdown>
            </div>
-           <div className="mt-8 pt-8 border-t border-white/5 flex justify-between items-center text-slate-500 font-bold uppercase text-[10px] tracking-widest">
-              <span>Verified Global Knowledge • Points Gained: +{isEraCompareMode ? 60 : 30}</span>
-              <button onClick={() => window.print()} className="hover:text-amber-500 transition-colors"><i className="fas fa-print mr-2"></i>Export Report</button>
+           <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="flex items-center space-x-3">
+                 <span className="text-[10px] font-black text-slate-500 uppercase">क्या जानकारी ज्ञानवर्धक थी?</span>
+                 <div className="flex space-x-2">
+                    <button onClick={() => handleFeedback(true)} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center transition-all"><i className="fas fa-thumbs-up"></i></button>
+                    <button onClick={() => handleFeedback(false)} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center transition-all"><i className="fas fa-thumbs-down"></i></button>
+                 </div>
+              </div>
+              {feedbackSent && <span className="text-[10px] font-black text-emerald-500 italic uppercase">शुक्रिया! आपको +10 बोनस पॉइंट मिले हैं।</span>}
            </div>
         </div>
       )}

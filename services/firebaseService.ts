@@ -1,11 +1,8 @@
 
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { getDatabase, ref, onValue, set, push, query, orderByChild, limitToLast, get, Database, update } from "firebase/database";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Auth, updateProfile } from "firebase/auth";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, AppCheck } from "firebase/app-check";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Auth, updateProfile } from "firebase/auth";
 import { LeaderboardEntry, UserState, ContestHistory, SearchEntry } from "../types";
 
-// Official NagrikSetu Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyC5ezP0LDYe5rCCx9M4fb39YLDeafyWwF8",
   authDomain: "studio-1007781369-dd9ce.firebaseapp.com",
@@ -16,160 +13,168 @@ const firebaseConfig = {
   databaseURL: "https://studio-1007781369-dd9ce-default-rtdb.firebaseio.com"
 };
 
-let db: Database | null = null;
-let auth: Auth | null = null;
-let appCheck: AppCheck | null = null;
-let isLive = false;
-let initError: string | null = null;
+const STORAGE_PREFIX = 'nagrik_local_v1_';
+const CURRENT_USER_KEY = 'nagriksetu_current_uid';
 
-const initialize = () => {
+// Helper to get safe Auth instance
+const getSafeAuth = (): Auth | null => {
   try {
-    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    db = getDatabase(app);
-    
-    isLive = true;
-    initError = null;
-
-    const hostname = window.location.hostname;
-    const isProdDomain = hostname.endsWith('firebaseapp.com') || hostname.endsWith('web.app');
-    const isPreview = hostname.includes('firebasestorage.app') || hostname.includes('preview');
-
-    if (isProdDomain && !isPreview) {
-      try {
-        appCheck = initializeAppCheck(app, {
-          provider: new ReCaptchaEnterpriseProvider('6LfZqzMsAAAAABuxCeh9OG11slCiPmdeqQ-6Fs9_'),
-          isTokenAutoRefreshEnabled: true
-        });
-        console.log("NagrikSetu Security: Production App Check Active.");
-      } catch (acErr: any) {
-        console.warn("NagrikSetu Security: App Check initialization deferred.");
-      }
-    }
-
-    console.log("NagrikSetu Cloud: Uplink Online.");
-  } catch (error: any) {
-    isLive = false;
-    initError = error?.message || "Critical Connection Error";
-    console.error("NagrikSetu Cloud: Handshake Failed.", initError);
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    return getAuth(app);
+  } catch (e) {
+    console.warn("Firebase Auth hidden from local mode.");
+    return null;
   }
 };
 
-initialize();
-
-const MOCK_USER_PREFIX = 'nagriksetu_user_';
-
 export const firebaseService = {
-  isCloudConnected() { return isLive; },
-  getInitError() { return initError; },
-  retryConnection() { initialize(); return isLive; },
-
-  async saveSearchHistory(uid: string, entry: SearchEntry) {
-    const current = await this.getUserData(uid) || { points: 0, level: 'Beginner', streak: 0 };
-    const history = [entry, ...(current.searchHistory || [])].slice(0, 30);
-    await this.syncUserData(uid, { ...current, searchHistory: history });
+  isCloudConnected() {
+    return !!getSafeAuth();
   },
 
-  async loginWithGoogle() {
-    if (auth && isLive) {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      return await signInWithPopup(auth, provider);
-    }
-    throw new Error("Cloud Auth Unavailable");
+  getInitError() {
+    return null;
   },
 
-  async signUpWithEmail(email: string, pass: string, name: string) {
-    if (auth && isLive) {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(userCredential.user, { displayName: name });
-      return userCredential;
-    }
-    throw new Error("Cloud Sign-up Unavailable");
-  },
-
-  async loginWithEmail(email: string, pass: string) {
-    if (auth && isLive) {
-      return await signInWithEmailAndPassword(auth, email, pass);
-    }
-    throw new Error("Cloud Login Unavailable");
-  },
-
-  async logout() {
-    if (auth) await signOut(auth);
-    localStorage.removeItem('nagriksetu_user_guest');
-  },
-
-  onAuthChange(callback: (user: any | null) => void) {
-    if (auth) {
-      return onAuthStateChanged(auth, (user) => {
-        callback(user);
-      });
-    }
-    callback(null);
-    return () => {};
+  retryConnection() {
+    window.location.reload();
   },
 
   async syncUserData(uid: string, data: Partial<UserState>) {
-    if (isLive && db && uid !== 'guest') {
-      try {
-        const userRef = ref(db, `users/${uid}`);
-        await update(userRef, { ...data, lastSync: Date.now() });
-      } catch (e) {
-        console.warn("Cloud Sync Interrupted.");
-      }
-    }
-    const existing = localStorage.getItem(MOCK_USER_PREFIX + uid);
-    const merged = existing ? { ...JSON.parse(existing), ...data } : data;
-    localStorage.setItem(MOCK_USER_PREFIX + uid, JSON.stringify(merged));
+    const key = STORAGE_PREFIX + uid;
+    const existing = localStorage.getItem(key);
+    const parsed = existing ? JSON.parse(existing) : {};
+    const merged = { ...parsed, ...data };
+    localStorage.setItem(key, JSON.stringify(merged));
+    localStorage.setItem(CURRENT_USER_KEY, uid);
   },
 
   async getUserData(uid: string): Promise<Partial<UserState> | null> {
-    if (isLive && db && uid !== 'guest') {
-      try {
-        const userRef = ref(db, `users/${uid}`);
-        const snapshot = await get(userRef);
-        if (snapshot.exists()) return snapshot.val();
-      } catch (error) {
-        console.warn("Cloud Fetch Interrupted.");
-      }
-    }
-    const localData = localStorage.getItem(MOCK_USER_PREFIX + uid);
-    return localData ? JSON.parse(localData) : null;
+    const local = localStorage.getItem(STORAGE_PREFIX + uid);
+    return local ? JSON.parse(local) : null;
+  },
+
+  async saveSearchHistory(uid: string, entry: SearchEntry) {
+    const current = await firebaseService.getUserData(uid) || { points: 0 };
+    const history = [entry, ...(current.searchHistory || [])].slice(0, 50);
+    await firebaseService.syncUserData(uid, { ...current, searchHistory: history });
   },
 
   async submitScore(uid: string, name: string, points: number, badge: string, contestDetails?: ContestHistory) {
-    if (isLive && db) {
+    const current = await firebaseService.getUserData(uid) || { points: 0 };
+    const contests = contestDetails ? [...(current.contests || []), contestDetails] : (current.contests || []);
+    await firebaseService.syncUserData(uid, { name, points, contests, level: badge });
+  },
+
+  onAuthChange(callback: (user: any | null) => void) {
+    // 1. Initial check from Local Storage for zero-latency response
+    const lastUid = localStorage.getItem(CURRENT_USER_KEY);
+    if (lastUid) {
+      const userData = localStorage.getItem(STORAGE_PREFIX + lastUid);
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        callback({ uid: lastUid, displayName: parsed.name, email: parsed.email });
+      }
+    } else {
+      callback(null);
+    }
+
+    // 2. Setup Firebase listener if cloud is active
+    const auth = getSafeAuth();
+    if (auth) {
+      return onAuthStateChanged(auth, (user) => {
+        if (user) {
+          firebaseService.syncUserData(user.uid, { name: user.displayName || 'Citizen', email: user.email || '' });
+          callback({ uid: user.uid, displayName: user.displayName, email: user.email });
+        } else {
+          if (!localStorage.getItem(CURRENT_USER_KEY)) {
+            callback(null);
+          }
+        }
+      });
+    }
+
+    return () => { /* No-op unsubscribe if auth isn't available */ };
+  },
+
+  async loginWithEmail(email: string, pass: string) {
+    const auth = getSafeAuth();
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Attempt Cloud Login
+    if (auth) {
       try {
-        const leaderboardRef = ref(db, 'leaderboard');
-        const newEntryRef = push(leaderboardRef);
-        await set(newEntryRef, { name, points, badge, timestamp: Date.now(), uid });
-      } catch (error) {
-        console.error("Cloud Leaderboard Submit Error");
+        const cred = await signInWithEmailAndPassword(auth, normalizedEmail, pass);
+        // Ensure local sync happens immediately on cloud success
+        await firebaseService.syncUserData(cred.user.uid, { 
+          name: cred.user.displayName || 'Citizen', 
+          email: normalizedEmail 
+        });
+        return cred;
+      } catch (e: any) {
+        // Handle specific cloud errors that shouldn't trigger local fallback
+        if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+          throw new Error("Wrong password. Please try again.");
+        }
+        console.warn("Cloud login failed, trying local fallback", e.code);
+      }
+    }
+
+    // Local Logic Fallback
+    const localUid = 'local_' + btoa(normalizedEmail).substring(0, 8);
+    const data = await firebaseService.getUserData(localUid);
+    if (data) {
+      localStorage.setItem(CURRENT_USER_KEY, localUid);
+      window.location.reload();
+      return { user: { uid: localUid, displayName: data.name, email: normalizedEmail } };
+    }
+    
+    throw new Error("Local account not found. Please sign up first.");
+  },
+
+  async signUpWithEmail(email: string, pass: string, name: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const localUid = 'local_' + btoa(normalizedEmail).substring(0, 8);
+    
+    // Setup local record first
+    await firebaseService.syncUserData(localUid, { 
+      name, 
+      points: 250, 
+      streak: 1, 
+      email: normalizedEmail, 
+      level: 'Citizen Scholar' 
+    });
+
+    const auth = getSafeAuth();
+    if (auth) {
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, pass);
+        await updateProfile(cred.user, { displayName: name });
+        return cred;
+      } catch (e) {
+        console.error("Cloud signup failed", e);
       }
     }
     
-    if (contestDetails) {
-      const currentData = await this.getUserData(uid) || { points: 0, level: 'Beginner', streak: 0 };
-      const updatedContests = [...(currentData.contests || []), contestDetails];
-      await this.syncUserData(uid, { ...currentData, points, contests: updatedContests });
+    localStorage.setItem(CURRENT_USER_KEY, localUid);
+    window.location.reload();
+    return { user: { uid: localUid, displayName: name, email: normalizedEmail } };
+  },
+
+  async logout() {
+    const auth = getSafeAuth();
+    if (auth) {
+      try {
+        await signOut(auth);
+      } catch (e) {}
     }
+    localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem('nagriksetu_user_guest');
+    window.location.reload();
   },
 
   onLeaderboardUpdate(callback: (entries: LeaderboardEntry[]) => void) {
-    if (!isLive || !db) {
-      callback([]);
-      return () => {};
-    }
-    const leaderboardRef = ref(db, 'leaderboard');
-    const q = query(leaderboardRef, orderByChild('points'), limitToLast(20));
-    return onValue(q, (snapshot) => {
-      if (snapshot.exists()) {
-        const rawData = snapshot.val();
-        const entries: any[] = Object.keys(rawData).map(key => ({ ...rawData[key], id: key }));
-        const sorted = entries.sort((a, b) => b.points - a.points);
-        callback(sorted.map((entry, index) => ({ ...entry, rank: index + 1 })));
-      }
-    });
+    callback([]);
+    return () => {};
   }
 };

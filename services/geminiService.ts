@@ -2,86 +2,74 @@
 import { GoogleGenAI, Type, Modality, GenerateContentResponse } from "@google/genai";
 import { LocalContext, Competition, LeaderboardEntry, SchemerInsight, TimelineEvent } from "../types";
 
-// Always use a named parameter for the API key.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const CACHE_KEY_PREFIX = 'nagriksetu_v3_cache_';
-
-/**
- * Caching utility to significantly reduce API hits and avoid 429 Resource Exhausted errors.
- */
-const getCache = (key: string) => {
-  const cached = localStorage.getItem(CACHE_KEY_PREFIX + key);
-  if (!cached) return null;
-  try {
-    const { data, expiry } = JSON.parse(cached);
-    if (Date.now() > expiry) {
-      localStorage.removeItem(CACHE_KEY_PREFIX + key);
-      return null;
-    }
-    return data;
-  } catch {
-    return null;
-  }
-};
-
-const setCache = (key: string, data: any, ttlHours: number = 12) => {
-  const expiry = Date.now() + ttlHours * 60 * 60 * 1000;
-  localStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify({ data, expiry }));
-};
-
-/**
- * Enhanced retry mechanism with Jittered Exponential Backoff for 429/Resource Exhausted.
- */
-const callWithRetry = async (fn: () => Promise<any>, retries = 4): Promise<any> => {
+const callWithRetry = async (fn: () => Promise<any>, retries = 3): Promise<any> => {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (error: any) {
-      const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
-      const errorMsg = error?.message || "";
-      
-      const isRateLimit = 
-        errorStr.includes('429') || 
-        errorStr.includes('RESOURCE_EXHAUSTED') || 
-        errorMsg.includes('429') || 
-        errorMsg.includes('RESOURCE_EXHAUSTED') ||
-        error?.status === 'RESOURCE_EXHAUSTED' ||
-        error?.status === 429;
-
-      if (isRateLimit && i < retries - 1) {
-        const waitTime = Math.pow(2, i) * 2000 + Math.random() * 1500;
-        console.warn(`[NagrikSetu] Quota limit hit. Retrying in ${Math.round(waitTime)}ms... (Attempt ${i + 1}/${retries})`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+      if ((error?.message?.includes('429')) && i < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
         continue;
       }
-      
-      if (isRateLimit) {
-        const busyError = new Error("SYSTEM_BUSY");
-        (busyError as any).details = errorMsg;
-        throw busyError;
-      }
-      
       throw error;
     }
   }
 };
 
 export const geminiService = {
-  // Specialized: Linguistic Rights & Law (Bhasha ka Kanun)
-  async askLinguisticRights(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+  async speak(text: string, voiceName: string = 'Kore'): Promise<Uint8Array> {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `सुनाएँ: ${text}` }] }],
+      config: { 
+        responseModalities: [Modality.AUDIO], 
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } } 
+      }
+    });
+    const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!data) throw new Error("Audio failed");
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  },
+
+  async explainWithAnalogy(text: string, context: LocalContext): Promise<string> {
     return callWithRetry(async () => {
       const ai = getAI();
-      const prompt = `
-        MISSION: Explain Linguistic Rights and Language Laws (भाषा का कानून).
-        Topic: "${query}"
-        Focus on:
-        1. 📜 **संविधान (Samvidhan):** Focus on Articles 343-351, 29, 30 and Eighth Schedule.
-        2. 🗣️ **भाषाई अधिकार:** Legal rights of speakers in ${context.city || 'their region'}.
-        3. ⚖️ **कानूनी प्रभाव:** Court proceedings and administrative language rules.
-        
-        Answer in ${context.language}. Wrap legal articles in **Double Asterisks**.
-      `;
+      const prompt = `SIMPLIFY THIS LEGAL/CONSTITUTIONAL TEXT USING AN EVERYDAY ANALOGY: "${text}". 
+      MISSION: Explain the core logic of this law/article to a common citizen who doesn't know legal jargon.
+      REQUIREMENT: Use a simple analogy (उदाहरण/उपमा) like a game, a household rule, or a village custom.
+      Language: ${context.language}.`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+      return response.text || "";
+    });
+  },
+
+  async analyzeCitizenRights(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const prompt = `SITUATION ANALYSIS FOR CITIZEN: "${query}". 
+      MISSION: Empower the citizen with comprehensive legal knowledge.
+      CATEGORIES TO COVER: 
+      - Daily Life (Consumer issues, Warranties, Services).
+      - Documentation (Birth to Death proofs, ID cards).
+      - Property & Disputes (Theft, Fights, Land, Family).
+      - Fundamental Rights & Police.
+      Analyze and provide:
+      1. Applicable Laws/Articles (संवैधानिक और कानूनी धाराएं).
+      2. Step-by-Step Action Plan (क्या करें - कानूनी रास्ता).
+      3. Documentation Advice (कौन से कागज लगेंगे).
+      4. Helpline numbers/Consumer Court info.
+      Language: ${context.language}. Professional yet simple.`;
+      
       return await ai.models.generateContent({
         model: "gemini-3-pro-preview",
         contents: prompt,
@@ -90,91 +78,110 @@ export const geminiService = {
     });
   },
 
-  // Historical Intersection & Era Comparison (Pehle vs Aaj)
+  async fetchLegalEncyclopedia(category: string, context: LocalContext): Promise<any[]> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Provide a list of 6 key laws/acts for the category: "${category}" in India. Language: Hindi.`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                year: { type: Type.STRING },
+                purpose: { type: Type.STRING },
+                benefit: { type: Type.STRING }
+              },
+              required: ["title", "year", "purpose", "benefit"]
+            }
+          }
+        }
+      });
+      return JSON.parse(response.text || "[]");
+    });
+  },
+
+  async analyzeLifeCycleDocs(context: LocalContext): Promise<any[]> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: "List the essential legal documentation journey for an Indian citizen from Birth to Death. Include: Birth, Education, Adulthood, Marriage, Property, Retirement, Will, Death. Language: Hindi.",
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                stage: { type: Type.STRING },
+                title: { type: Type.STRING },
+                docs: { type: Type.ARRAY, items: { type: Type.STRING } },
+                purpose: { type: Type.STRING },
+                authority: { type: Type.STRING }
+              },
+              required: ["stage", "title", "docs", "purpose", "authority"]
+            }
+          }
+        }
+      });
+      return JSON.parse(response.text || "[]");
+    });
+  },
+
+  async generateApplication(data: { receiver: string, subject: string, details: string, name: string }, context: LocalContext): Promise<string> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const prompt = `Write a formal application (आवेदन पत्र) in ${context.language}. 
+      To: ${data.receiver}
+      Subject: ${data.subject}
+      Issue Details: ${data.details}
+      From: ${data.name}
+      Format: Professional letter with space for date and signature. Include appropriate respect terms (Mahoday/Sriman).`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+      return response.text || "";
+    });
+  },
+
+  async analyzeFinancialSafety(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const prompt = `Analyze financial safety/scam potential for: "${query}". 
+      MISSION: Protect the citizen from financial fraud. 
+      Explain: 
+      1. Potential Red Flags (धोखे के लक्षण).
+      2. Regulatory rules (RBI/SEBI/IRDAI context).
+      3. Legal Rights if cheated.
+      4. Safe Investment Principles.
+      Language: ${context.language}. Structured with bold headings and icons.`;
+      
+      return await ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents: prompt,
+        config: { tools: [{ googleSearch: {} }] }
+      });
+    });
+  },
+
   async askEraComparison(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     return callWithRetry(async () => {
       const ai = getAI();
-      const prompt = `
-        MISSION: Compare "Then vs Now" (पहिले और आज) through a Constitutional and Global lens.
-        Subject: "${query}"
-        
-        Structure:
-        1. 🕰️ **पहिले (The Past):** How it worked before the Indian Constitution (British era or Ancient).
-        2. 📜 **संविधान का प्रभाव (Constitutional Shift):** How the Law/Constitution changed this.
-        3. ⚡ **आज (Today):** Current state in 2024.
-        4. 🌍 **ग्लोबल कड़ी (Global View):** One parallel fact from world history about this.
-        
-        Language: ${context.language}. Use structured Markdown.
-      `;
-      return await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }] }
-      });
-    });
-  },
-
-  // Weekly Timeline Generator - CACHED
-  async fetchWeeklyTimeline(context: LocalContext): Promise<TimelineEvent[]> {
-    const cacheKey = `timeline_v2_${context.language}_${new Date().toDateString()}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Generate 5-7 major global/Indian historical events for this week. Output JSON array of objects: {year, event, description}. Language: ${context.language}.`,
-        config: { responseMimeType: "application/json" }
-      });
-      const data = JSON.parse(response.text || "[]");
-      setCache(cacheKey, data, 24);
-      return data;
-    });
-  },
-
-  // Daily Growth / Sadhana - CACHED
-  async generateDailyGrowth(context: LocalContext): Promise<any> {
-    const cacheKey = `daily_growth_v2_${context.language}_${new Date().toDateString()}`;
-    // Fix: Block-scoped variable 'cached' was being used before its declaration. Pass 'cacheKey' to getCache.
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Daily Growth Ritual for an Empowered Citizen. JSON: affirmation, strategy (title, content, source), logicPuzzle (question, options, correctIndex, explanation), ethicsHabit (title, action).",
-        config: { responseMimeType: "application/json" }
-      });
-      const data = JSON.parse(response.text || "{}");
-      setCache(cacheKey, data, 12);
-      return data;
-    });
-  },
-
-  // Explorer Deep Intelligence Scan
-  async getExplorerInfo(location: { lat?: number; lng?: number }, context: LocalContext, searchQuery?: string): Promise<GenerateContentResponse> {
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const target = searchQuery ? `Location: ${searchQuery}` : `Coordinates lat: ${location.lat}, lng: ${location.lng}`;
-      const prompt = `Deep Intelligence Scan of "${target}". Structure: 1. History (Pehle), 2. Current State (Aaj), 3. Law/Language (Bhasha aur Kanoon), 4. Food (Khau Gali), 5. Nature (Prakriti). Language: ${context.language}.`;
+      const prompt = `MISSION: Expert "Then vs Now" (पहिले and आज) comparison. 
+      Topic: "${query}". 
+      Explain:
+      1. पहिले (History): Global/Ancient context of how things were.
+      2. आज (Now): Modern Law and current events context.
+      3. संविधान (Samvidhan): Specific Article context if applicable.
+      Focus on Global History evolution. Language: ${context.language}.`;
       
-      const config: any = {
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { tools: [{ googleMaps: {} }, { googleSearch: {} }] }
-      };
-      if (location.lat && location.lng && !searchQuery) {
-        config.config.toolConfig = { retrievalConfig: { latLng: { latitude: location.lat, longitude: location.lng } } };
-      }
-      return await ai.models.generateContent(config);
-    });
-  },
-
-  async askComplexQuestion(prompt: string, context?: LocalContext): Promise<GenerateContentResponse> {
-    return callWithRetry(async () => {
-      const ai = getAI();
       return await ai.models.generateContent({
         model: "gemini-3-pro-preview",
         contents: prompt,
@@ -183,12 +190,136 @@ export const geminiService = {
     });
   },
 
-  async getLocalInfo(prompt: string, location?: { lat: number; lng: number }, context?: LocalContext): Promise<GenerateContentResponse> {
+  async askLinguisticRights(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     return callWithRetry(async () => {
       const ai = getAI();
-      const config: any = { tools: [{ googleMaps: {} }] };
-      if (location) config.toolConfig = { retrievalConfig: { latLng: { latitude: location.lat, longitude: location.lng } } };
-      return await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt, config: config });
+      const prompt = `EXPLAIN LANGUAGE LAWS (Bhasha ka Kanun). 
+      Specifically: "${query}". 
+      Mandatory Focus: Indian Samvidhan Articles 343-351, 29, 30. 
+      Mention historical context (Pehle) vs current usage (Aaj). 
+      Answer in structured ${context.language}.`;
+      
+      return await ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents: prompt,
+        config: { tools: [{ googleSearch: {} }] }
+      });
+    });
+  },
+
+  async generateDidYouKnow(topic: string, context: LocalContext): Promise<string> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `One short fascinating fact about: "${topic}" (Global History or Law). Language: ${context.language}.`,
+      });
+      return response.text || "";
+    });
+  },
+
+  async generateDailyGrowth(context: LocalContext): Promise<any> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: "Daily Learning Ritual for history and law scholar. Language: Hindi.",
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              affirmation: { type: Type.STRING },
+              strategy: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  content: { type: Type.STRING },
+                  source: { type: Type.STRING }
+                },
+                required: ["title", "content", "source"]
+              },
+              logicPuzzle: {
+                type: Type.OBJECT,
+                properties: {
+                  question: { type: Type.STRING },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  correctIndex: { type: Type.INTEGER },
+                  explanation: { type: Type.STRING }
+                },
+                required: ["question", "options", "correctIndex", "explanation"]
+              },
+              ethicsHabit: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  action: { type: Type.STRING }
+                },
+                required: ["title", "action"]
+              }
+            },
+            required: ["affirmation", "strategy", "logicPuzzle", "ethicsHabit"]
+          }
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    });
+  },
+
+  async getQueryTimeline(query: string, context: LocalContext): Promise<TimelineEvent[]> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Historical timeline for: "${query}". 6 milestones. JSON array of {year, event, description}. Language: ${context.language}.`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                year: { type: Type.STRING },
+                event: { type: Type.STRING },
+                description: { type: Type.STRING }
+              },
+              required: ["year", "event", "description"]
+            }
+          }
+        }
+      });
+      return JSON.parse(response.text || "[]");
+    });
+  },
+
+  async fetchTodayInHistory(context: LocalContext): Promise<TimelineEvent[]> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const now = new Date();
+      const day = now.getDate();
+      const month = now.toLocaleString('en-US', { month: 'long' });
+      const year = now.getFullYear();
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Provide 7 MAJOR historical global events that happened on ${month} ${day}. Use the context of today being ${day} ${month} ${year}. Language: ${context.language}. Ensure events are diverse (Politics, Science, Law, War, Discovery).`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                year: { type: Type.STRING },
+                event: { type: Type.STRING },
+                description: { type: Type.STRING }
+              },
+              required: ["year", "event", "description"]
+            }
+          }
+        }
+      });
+      return JSON.parse(response.text || "[]");
     });
   },
 
@@ -203,73 +334,14 @@ export const geminiService = {
     });
   },
 
-  async generateDidYouKnow(topic: string, context: LocalContext): Promise<string> {
-    const cacheKey = `did_you_know_v2_${topic}_${context.language}_${new Date().toDateString()}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
+  async getLocalInfo(prompt: string, location?: any, context?: LocalContext): Promise<GenerateContentResponse> {
     return callWithRetry(async () => {
       const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Surprising historical/legal fact about: "${topic}". Language: ${context.language}. Short!`,
+      return await ai.models.generateContent({ 
+        model: "gemini-3-flash-preview", 
+        contents: prompt, 
+        config: { tools: [{ googleSearch: {} }] } 
       });
-      const text = response.text || "";
-      setCache(cacheKey, text, 24);
-      return text;
-    });
-  },
-
-  async getDailyHighlights(context: LocalContext): Promise<any> {
-    const cacheKey = `highlights_v2_${context.city}_${new Date().toDateString()}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Daily highlights for ${context.city}. JSON: article (title, content), history (title, content).`,
-        config: { responseMimeType: "application/json" }
-      });
-      const data = JSON.parse(response.text || "{}");
-      setCache(cacheKey, data, 12);
-      return data;
-    });
-  },
-
-  async getRegionalContext(lat: number, lng: number): Promise<any> {
-    const cacheKey = `location_v2_${lat.toFixed(2)}_${lng.toFixed(2)}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Country, city, language for coordinates: ${lat}, ${lng}. JSON.`,
-        config: { responseMimeType: "application/json" }
-      });
-      const data = JSON.parse(response.text || "{}");
-      setCache(cacheKey, data, 168);
-      return data;
-    });
-  },
-
-  async speak(text: string, voiceName: string = 'Kore'): Promise<ArrayBuffer> {
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text }] }],
-        config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } } }
-      });
-      const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!data) throw new Error("Audio failed");
-      const binary = atob(data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return bytes.buffer;
     });
   },
 
@@ -278,20 +350,94 @@ export const geminiService = {
       const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Quiz on: ${content}. JSON array of QuizQuestion objects.`,
-        config: { responseMimeType: "application/json" }
+        contents: `Quiz on: ${content}. Language: Hindi.`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { type: Type.STRING },
+                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                correctAnswerIndex: { type: Type.INTEGER },
+                explanation: { type: Type.STRING }
+              },
+              required: ["question", "options", "correctAnswerIndex", "explanation"]
+            }
+          }
+        }
       });
       return JSON.parse(response.text || "[]");
     });
   },
 
-  async getSchemerInsight(query: string, context: LocalContext): Promise<SchemerInsight> {
+  async generatePersonalHistory(notes: string, context: LocalContext): Promise<GenerateContentResponse> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      return await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Turn notes into biography: ${notes}. Language: ${context.language}.`,
+      });
+    });
+  },
+
+  async getRegionalContext(lat: number, lng: number): Promise<any> {
     return callWithRetry(async () => {
       const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Psych profile of: ${query}. JSON.`,
-        config: { responseMimeType: "application/json" }
+        contents: `Country, city for coords: ${lat}, ${lng}.`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              country: { type: Type.STRING },
+              city: { type: Type.STRING },
+              language: { type: Type.STRING }
+            },
+            required: ["country", "city", "language"]
+          }
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    });
+  },
+  
+  async getDailyHighlights(context: LocalContext): Promise<any> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const now = new Date();
+      const dateStr = now.toDateString();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Based on today's date ${dateStr}, provide: 1. A daily legal article context. 2. A major historical event from this same calendar day in the past. Language: Hindi.`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              article: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  content: { type: Type.STRING }
+                },
+                required: ["title", "content"]
+              },
+              history: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  content: { type: Type.STRING }
+                },
+                required: ["title", "content"]
+              }
+            },
+            required: ["article", "history"]
+          }
+        }
       });
       return JSON.parse(response.text || "{}");
     });
@@ -302,10 +448,73 @@ export const geminiService = {
       const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: "Weekly knowledge competition. JSON keys: title, description, theme, rules, prizePoints.",
-        config: { responseMimeType: "application/json" }
+        contents: "Weekly knowledge competition. Language: Hindi.",
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              description: { type: Type.STRING },
+              theme: { type: Type.STRING },
+              rules: { type: Type.ARRAY, items: { type: Type.STRING } },
+              prizePoints: { type: Type.INTEGER }
+            },
+            required: ["title", "description", "theme", "rules", "prizePoints"]
+          }
+        }
       });
       return JSON.parse(response.text || "{}");
+    });
+  },
+
+  async getRelatedTopics(text: string, context: LocalContext): Promise<string[]> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Based on: "${text}", suggest 4 short related topics for history/law study. Language: ${context.language}.`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+      return JSON.parse(response.text || "[]");
+    });
+  },
+
+  async editStudyImage(prompt: string, base64: string, mime: string): Promise<string> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            { inlineData: { data: base64, mimeType: mime } },
+            { text: prompt }
+          ]
+        }
+      });
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+      }
+      throw new Error("Image edit failed");
+    });
+  },
+
+  async askComplexQuestion(prompt: string, context: LocalContext): Promise<GenerateContentResponse> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      return await ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents: prompt,
+        config: { systemInstruction: `Expert in psychology and law. Answer in ${context.language}.` }
+      });
     });
   },
 
@@ -314,33 +523,51 @@ export const geminiService = {
       const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Leaderboard for ${userName} (${userPoints}). JSON array.`,
-        config: { responseMimeType: "application/json" }
+        contents: `Generate a JSON array of 10 competitive users for a leaderboard. Include "${userName}" with ${userPoints} points (isCurrentUser: true).`,
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                rank: { type: Type.INTEGER },
+                name: { type: Type.STRING },
+                points: { type: Type.INTEGER },
+                badge: { type: Type.STRING },
+                isCurrentUser: { type: Type.BOOLEAN }
+              },
+              required: ["rank", "name", "points", "badge"]
+            }
+          }
+        }
       });
       return JSON.parse(response.text || "[]");
     });
   },
 
-  async editStudyImage(prompt: string, base64: string, mime: string): Promise<string | null> {
+  async getSchemerInsight(query: string, context: LocalContext): Promise<SchemerInsight> {
     return callWithRetry(async () => {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ inlineData: { data: base64, mimeType: mime } }, { text: prompt }] },
+        model: "gemini-3-flash-preview",
+        contents: `Analyze: "${query}". JSON output for psychological insight. Language: ${context.language}.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              era: { type: Type.STRING },
+              tactic: { type: Type.STRING },
+              lesson: { type: Type.STRING },
+              warningSigns: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["name", "era", "tactic", "lesson", "warningSigns"]
+          }
+        }
       });
-      const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-      return part ? `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` : null;
-    });
-  },
-
-  async generatePersonalHistory(notes: string, context: LocalContext): Promise<GenerateContentResponse> {
-    return callWithRetry(async () => {
-      const ai = getAI();
-      return await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: notes,
-        config: { systemInstruction: `Professional biographer in ${context.language}.` }
-      });
+      return JSON.parse(response.text || "{}");
     });
   },
 
@@ -348,9 +575,45 @@ export const geminiService = {
     return callWithRetry(async () => {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Analyze scam: ${query}. Language: ${context.language}.`,
-        config: { tools: [{ googleSearch: {} }] }
+        model: "gemini-3-flash-preview",
+        contents: `Analyze potential modern scam/deception: "${query}". Language: ${context.language}.`,
+      });
+      return response.text || "";
+    });
+  },
+
+  async explainCrimeScene(query: string, context: LocalContext): Promise<any> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Explain crime scene analysis: "${query}". Language: ${context.language}.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              simpleAnalogy: { type: Type.STRING },
+              theoryExplained: { type: Type.STRING },
+              motiveAnalysis: { type: Type.STRING },
+              clues: { type: Type.ARRAY, items: { type: Type.STRING } },
+              forensicFacts: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["title", "simpleAnalogy", "theoryExplained", "motiveAnalysis", "clues", "forensicFacts"]
+          }
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    });
+  },
+
+  async analyzeMissingLink(query: string, context: LocalContext): Promise<string> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Bridge historical wisdom with modern problem: "${query}". Language: ${context.language}.`,
       });
       return response.text || "";
     });
@@ -360,8 +623,8 @@ export const geminiService = {
     return callWithRetry(async () => {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `NagrikSetu strategy for ${context.country}.`,
+        model: "gemini-3-pro-preview",
+        contents: `Strategic market analysis of NagrikSetu (Law/History AI) in India. Language: ${context.language}.`,
       });
       return response.text || "";
     });
@@ -371,9 +634,9 @@ export const geminiService = {
     return callWithRetry(async () => {
       const ai = getAI();
       return await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: query,
-        config: { systemInstruction: `Gyan Guru in ${context.language}.` }
+        model: "gemini-3-pro-preview",
+        contents: `Universal religious wisdom for: "${query}". Language: ${context.language}.`,
+        config: { tools: [{ googleSearch: {} }] }
       });
     });
   },
@@ -382,52 +645,32 @@ export const geminiService = {
     return callWithRetry(async () => {
       const ai = getAI();
       return await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: query,
-        config: { systemInstruction: `Cultural Guru in ${context.language}.` }
-      });
-    });
-  },
-
-  // Added explainCrimeScene for CrimeSceneExplainer
-  async explainCrimeScene(query: string, context: LocalContext): Promise<any> {
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `MISSION: Analyze a crime scene or forensic theory for a student of criminology.
-          Topic: "${query}"
-          Output: JSON object with keys:
-          - title: A catchy title for the case.
-          - simpleAnalogy: A very simple comparison to explain the concept.
-          - theoryExplained: Detailed explanation of the underlying criminology theory.
-          - motiveAnalysis: Psychological insight into why such a crime might be committed.
-          - clues: Array of 3-5 typical clues found in such scenes.
-          - forensicFacts: Array of 3-5 scientific or forensic facts related to this.
-          
-          Language: ${context.language}.`,
-        config: { responseMimeType: "application/json" }
-      });
-      return JSON.parse(response.text || "{}");
-    });
-  },
-
-  // Added analyzeMissingLink for CrimeSceneExplainer
-  async analyzeMissingLink(query: string, context: LocalContext): Promise<string> {
-    return callWithRetry(async () => {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
-        contents: `MISSION: Analyze the "Missing Link" (लुप्त कड़ी) between historical patterns and modern problems.
-          Subject: "${query}"
-          Focus on:
-          1. Historical context and how similar problems were solved in the past.
-          2. Modern technology or legal shifts that changed the landscape.
-          3. The bridge: What we are missing today that the past had, or vice versa.
-          
-          Language: ${context.language}. Provide deep philosophical and strategic insight.`,
+        contents: `Cultural and heritage insights for: "${query}". Language: ${context.language}.`,
+        config: { tools: [{ googleSearch: {} }] }
       });
-      return response.text || "";
     });
   },
+
+  async getExplorerInfo(location: { lat?: number; lng?: number }, context: LocalContext, query?: string): Promise<GenerateContentResponse> {
+    return callWithRetry(async () => {
+      const ai = getAI();
+      const prompt = query || `Explore regional context at ${location.lat}, ${location.lng}. Language: ${context.language}.`;
+      return await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          tools: [{ googleMaps: {} }, { googleSearch: {} }],
+          toolConfig: {
+            retrievalConfig: {
+              latLng: location.lat && location.lng ? {
+                latitude: location.lat,
+                longitude: location.lng
+              } : undefined
+            }
+          }
+        }
+      });
+    });
+  }
 };

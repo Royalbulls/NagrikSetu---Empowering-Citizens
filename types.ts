@@ -7,6 +7,14 @@ export interface Message {
   images?: string[];
 }
 
+export interface AuraStats {
+  history: number;
+  law: number;
+  ethics: number;
+  finance: number;
+  culture: number;
+}
+
 export interface SearchEntry {
   id: string;
   query: string;
@@ -29,6 +37,7 @@ export interface UserState {
   level: string;
   streak: number;
   name?: string;
+  email?: string;
   dob?: string;
   place?: string;
   photo?: string;
@@ -37,6 +46,7 @@ export interface UserState {
   detectedLanguage?: string;
   contests?: ContestHistory[];
   searchHistory?: SearchEntry[];
+  auraStats?: AuraStats;
 }
 
 export interface QuizQuestion {
@@ -98,11 +108,12 @@ export enum AppSection {
   HISTORY = 'history',
   LAW = 'law',
   CONSTITUTION = 'constitution',
+  FINANCE = 'finance',
+  CITIZEN_RIGHTS = 'citizen_rights',
   CURRENT_AFFAIRS = 'current_affairs',
   LIVE_TUTOR = 'live_tutor',
   IMAGE_STUDY = 'image_study',
   CRIMINOLOGY = 'criminology',
-  CRIME_SCENE = 'crime_scene',
   MY_STORY = 'my_story',
   DAILY_PRACTICE = 'daily_practice',
   COMPETITION = 'competition',
@@ -114,5 +125,10 @@ export enum AppSection {
   SUPPORT = 'support',
   ABOUT_US = 'about_us',
   EXPLORER = 'explorer',
-  WEEKLY_TIMELINE = 'weekly_timeline'
+  WEEKLY_TIMELINE = 'weekly_timeline',
+  APPLICATION_WRITER = 'application_writer',
+  EXPERT_CONNECT = 'expert_connect',
+  POLICIES = 'policies',
+  RBA_SERVICES = 'rba_services',
+  AURA_CHAMBER = 'aura_chamber'
 }

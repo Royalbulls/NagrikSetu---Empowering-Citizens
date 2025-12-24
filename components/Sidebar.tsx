@@ -1,126 +1,163 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AppSection } from '../types';
 
 interface SidebarProps {
   activeSection: AppSection;
   setActiveSection: (section: AppSection) => void;
   language: string;
+  points?: number;
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+  isGuest?: boolean;
+  onLoginClick?: () => void;
 }
 
-const sidebarTranslations: Record<string, any> = {
-  Hindi: {
-    hub: "नागरिक केंद्र", hubSub: "कंट्रोल हब",
-    explorer: "विरासत एक्सप्लोरर", explorerSub: "नक्शे और गाइड",
-    vision: "विज़न लैब", visionSub: "भविष्य की दृष्टि",
-    support: "मिशन सहारा", supportSub: "हमारा साथ दें",
-    archives: "ज्ञान संग्रह", archivesSub: "पुराने सत्र",
-    daily: "दैनिक साधना", dailySub: "रोज का अभ्यास",
-    contest: "प्रतियोगिता", contestSub: "ग्लोबल मुकाबला",
-    investigate: "इन्वेस्टिगेटर", investigateSub: "अपराध और सुराग",
-    wisdom: "विवेक केंद्र", wisdomSub: "बुद्धिमानी हब",
-    culture: "विरासत लैब", cultureSub: "संस्कृति और बोलियाँ",
-    religion: "धर्म संगम", religionSub: "विश्व का ज्ञान",
-    law: "कानून सहायता", lawSub: "कानूनी कार्रवाई",
-    constitution: "संविधान", constitutionSub: "अधिकार केंद्र",
-    history: "इतिहास", historySub: "वैश्विक कालक्रम",
-    story: "मेरी कहानी", storySub: "डिजिटल यादें",
-    tutor: "लाइव ट्यूटर", tutorSub: "वॉइस AI",
-    profile: "प्रोफाइल", profileSub: "सांख्यिकी और इनाम",
-    about: "टीम और विज़न", aboutSub: "The Founders",
-    chronology: "साप्ताहिक कालक्रम", chronologySub: "इतिहास का पहिया",
-    menuHeader: "ऐप मेन्यू",
-    mastery: "महारत स्तर"
-  },
-  English: {
-    hub: "Citizen Hub", hubSub: "Control Hub",
-    explorer: "Heritage Explorer", explorerSub: "Maps & Guides",
-    vision: "Vision Lab", visionSub: "Future Vision",
-    support: "Support Mission", supportSub: "Help Us Grow",
-    archives: "Archives", archivesSub: "Saved Sessions",
-    daily: "Daily Practice", dailySub: "Daily Ritual",
-    contest: "Competition", contestSub: "Global Contest",
-    investigate: "Investigator", investigateSub: "Crime & Clues",
-    wisdom: "Wisdom Center", wisdomSub: "Intelligence Hub",
-    culture: "Heritage Lab", cultureSub: "Culture & Dialects",
-    religion: "Religion Junction", religionSub: "World Wisdom",
-    law: "Legal Help", lawSub: "Law Action",
-    constitution: "Constitution", constitutionSub: "Rights Center",
-    history: "History", historySub: "Global History",
-    story: "My Story", storySub: "Digital Memoir",
-    tutor: "Live Tutor", tutorSub: "Voice AI",
-    profile: "Profile", profileSub: "Stats & Rewards",
-    about: "Team & Vision", aboutSub: "The Founders",
-    chronology: "Weekly Chronology", chronologySub: "Wheel of History",
-    menuHeader: "App Menu",
-    mastery: "Mastery Level"
-  }
-};
+const Sidebar: React.FC<SidebarProps> = ({ activeSection, setActiveSection, language, points = 0, isOpen, setIsOpen, isGuest, onLoginClick }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const isHindi = language === 'Hindi';
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, setActiveSection, language }) => {
-  const t = sidebarTranslations[language] || sidebarTranslations.English;
-
-  const menuItems = [
-    { id: AppSection.HUB, label: t.hub, sub: t.hubSub, icon: 'fa-grip' },
-    { id: AppSection.EXPLORER, label: t.explorer, sub: t.explorerSub, icon: 'fa-map-location-dot' },
-    { id: AppSection.WEEKLY_TIMELINE, label: t.chronology, sub: t.chronologySub, icon: 'fa-timeline' },
-    { id: AppSection.DAILY_PRACTICE, label: t.daily, sub: t.dailySub, icon: 'fa-crown' },
-    { id: AppSection.COMPETITION, label: t.contest, sub: t.contestSub, icon: 'fa-trophy' },
-    { id: AppSection.LAW, label: t.law, sub: t.lawSub, icon: 'fa-scale-balanced' },
-    { id: AppSection.CONSTITUTION, label: t.constitution, sub: t.constitutionSub, icon: 'fa-book-open' },
-    { id: AppSection.HISTORY, label: t.history, sub: t.historySub, icon: 'fa-monument' },
-    { id: AppSection.DASHBOARD, label: t.profile, sub: t.profileSub, icon: 'fa-user' },
+  const categories = [
+    {
+      title: isHindi ? "शिक्षा और खोज" : "Education & Discovery",
+      items: [
+        { id: AppSection.HUB, label: isHindi ? "मेन हब" : "Main Hub", icon: 'fa-grip-vertical' },
+        { id: AppSection.HISTORY, label: isHindi ? "इतिहास (पहिले/आज)" : "History (Then/Now)", icon: 'fa-monument' },
+        { id: AppSection.CONSTITUTION, label: isHindi ? "संविधान (Samvidhan)" : "Constitution", icon: 'fa-book-open' },
+        { id: AppSection.EXPLORER, label: isHindi ? "ग्लोबल मैप" : "Global Explorer", icon: 'fa-earth-asia' },
+        { id: AppSection.WEEKLY_TIMELINE, label: isHindi ? "आज का इतिहास" : "Today in History", icon: 'fa-timeline' },
+        { id: AppSection.CURRENT_AFFAIRS, label: isHindi ? "दुनिया की खबरें" : "Global News", icon: 'fa-newspaper' },
+      ]
+    },
+    {
+      title: isHindi ? "अधिकार और कानून" : "Rights & Laws",
+      items: [
+        { id: AppSection.CITIZEN_RIGHTS, label: isHindi ? "अधिकारों का कवच" : "Rights Hub", icon: 'fa-landmark-dome' },
+        { id: AppSection.LAW, label: isHindi ? "भाषा और कानून" : "Language Law", icon: 'fa-scale-balanced' },
+        { id: AppSection.FINANCE, label: isHindi ? "वित्तीय कवच" : "Financial Shield", icon: 'fa-vault' },
+        { id: AppSection.GLOBAL_SCHEMERS, label: isHindi ? "जागरूक नागरिक" : "Global Schemers", icon: 'fa-user-ninja' },
+      ]
+    },
+    {
+      title: isHindi ? "आध्यात्मिक और ऊर्जा" : "Spiritual & Aura",
+      items: [
+        { id: AppSection.AURA_CHAMBER, label: isHindi ? "Aura कक्ष" : "Aura Chamber", icon: 'fa-wand-magic-sparkles', badge: points >= 1000 ? 'ACTIVE' : 'LOCKED' },
+      ]
+    },
+    {
+      title: isHindi ? "प्रीमियम सेवा (RBA)" : "Premium Services",
+      items: [
+        { id: AppSection.APPLICATION_WRITER, label: isHindi ? "आवेदन सहायक" : "Aavedan Writer", icon: 'fa-file-pen' },
+        { id: AppSection.RBA_SERVICES, label: isHindi ? "RBA समाधान" : "RBA Solutions", icon: 'fa-bullseye', badge: 'PRO' },
+        { id: AppSection.LIVE_TUTOR, label: isHindi ? "लाइव वॉयस एआई" : "Live Tutor", icon: 'fa-microphone-lines' },
+      ]
+    },
+    {
+      title: isHindi ? "मेरा सफर" : "My Journey",
+      items: [
+        { id: AppSection.DASHBOARD, label: isHindi ? "मेरा डैशबोर्ड" : "Dashboard", icon: 'fa-chart-pie' },
+        { id: AppSection.DAILY_PRACTICE, label: isHindi ? "दैनिक साधना" : "Daily Practice", icon: 'fa-crown' },
+        { id: AppSection.SAVED_SESSIONS, label: isHindi ? "ज्ञान संग्रह" : "Saved Archives", icon: 'fa-box-archive' },
+        { id: AppSection.COMPETITION, label: isHindi ? "प्रतियोगिता" : "Competition", icon: 'fa-trophy' },
+      ]
+    }
   ];
 
+  const filteredCategories = categories.map(cat => ({
+    ...cat,
+    items: cat.items.filter(item => 
+      item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.id.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })).filter(cat => cat.items.length > 0);
+
+  const handleNav = (id: AppSection) => {
+    setActiveSection(id);
+    if (window.innerWidth < 768) setIsOpen(false);
+  };
+
   return (
-    <aside className="hidden md:flex w-72 flex-col bg-slate-900 border-r border-amber-900/30 shadow-2xl h-screen sticky top-0 overflow-hidden">
-      <div className="p-6 flex flex-col h-full">
-        <button 
-          onClick={() => setActiveSection(AppSection.HUB)}
-          className="flex items-center space-x-3 mb-8 shrink-0 hover:opacity-80 transition-opacity"
-        >
-          <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-2 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.3)]">
-            <i className="fas fa-bridge text-slate-950 text-lg"></i>
-          </div>
-          <h1 className="text-xl font-black tracking-tighter text-white uppercase">{language === 'Hindi' ? 'नागरिक सेतु' : 'NagrikSetu'}</h1>
-        </button>
+    <>
+      {isOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[60] md:hidden" onClick={() => setIsOpen(false)} />
+      )}
 
-        <nav className="space-y-1 overflow-y-auto flex-1 dark-scroll pr-2 -mr-2">
-          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-4 ml-2">{t.menuHeader}</p>
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                activeSection === item.id 
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-lg scale-[1.02]' 
-                : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800/50'
-              }`}
-            >
-              <div className={`w-5 flex justify-center ${activeSection === item.id ? 'text-slate-950' : 'group-hover:text-amber-400'}`}>
-                <i className={`fas ${item.icon} text-sm`}></i>
-              </div>
-              <div className="text-left">
-                <p className="text-[11px] font-black tracking-wide leading-none uppercase">{item.label}</p>
-                <p className={`text-[8px] mt-0.5 uppercase tracking-tighter font-bold ${activeSection === item.id ? 'text-slate-900/70' : 'text-slate-600'}`}>{item.sub}</p>
-              </div>
-            </button>
-          ))}
-        </nav>
-
-        <div className="mt-6 pt-4 border-t border-white/5 shrink-0">
-          <div className="bg-slate-950/50 rounded-xl p-4 border border-amber-500/10">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-[9px] text-amber-500/60 font-black uppercase tracking-widest">{t.mastery}</p>
-              <span className="text-[9px] font-black text-amber-500">65%</span>
+      <aside className={`fixed md:sticky top-0 left-0 h-screen w-80 bg-slate-900 border-r border-amber-900/20 shadow-2xl z-[70] transition-transform duration-500 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="p-6 flex flex-col h-full overflow-hidden">
+          
+          <button onClick={() => handleNav(AppSection.HUB)} className="flex items-center space-x-4 mb-8 shrink-0 group">
+            <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-3 rounded-[1.25rem] shadow-2xl border-2 border-slate-900 group-hover:scale-110 transition-transform">
+              <i className="fas fa-bridge text-slate-950 text-xl"></i>
             </div>
-            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-              <div className="bg-amber-500 h-full w-2/3 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+            <div className="text-left">
+              <h1 className="text-2xl font-black tracking-tighter text-white uppercase italic leading-none">नागरिक सेतु</h1>
+              <p className="text-[8px] text-amber-500/60 font-black uppercase tracking-[0.4em] mt-1">Sashakt Bharat Mission</p>
+            </div>
+          </button>
+
+          {isGuest && (
+            <div className="mb-6 bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl animate-pulse">
+               <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-2 text-center">प्रगति स्थायी रूप से सेव करें</p>
+               <button onClick={onLoginClick} className="w-full bg-amber-500 text-slate-950 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-400 transition-all">Sign In / Join</button>
+            </div>
+          )}
+
+          <div className="relative mb-6 px-1 shrink-0">
+            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 text-xs"></i>
+            <input 
+              type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={isHindi ? "टूल खोजें..." : "Search tools..."}
+              className="w-full bg-slate-950 border border-white/5 rounded-xl py-3 pl-10 pr-4 text-xs text-white focus:border-amber-500/50 outline-none transition-all"
+            />
+          </div>
+
+          <nav className="flex-1 overflow-y-auto pr-2 -mr-4 dark-scroll pb-10 space-y-8">
+            {filteredCategories.map((cat, idx) => (
+              <div key={idx} className="space-y-1">
+                <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.2em] mb-3 ml-4 flex items-center">
+                  <span className="w-1.5 h-1.5 bg-slate-800 rounded-full mr-3"></span>
+                  {cat.title}
+                </p>
+                {cat.items.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNav(item.id)}
+                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
+                      activeSection === item.id 
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-xl scale-[1.02]' 
+                      : 'text-slate-400 hover:text-amber-400 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${activeSection === item.id ? 'bg-slate-950/10' : 'bg-slate-800 group-hover:bg-amber-500/10'}`}>
+                        <i className={`fas ${item.icon} text-sm`}></i>
+                      </div>
+                      <span className="text-[11px] font-black tracking-wide uppercase">{item.label}</span>
+                    </div>
+                    {item.badge && <span className={`text-[7px] font-black px-2 py-0.5 rounded-full uppercase ${item.badge === 'LOCKED' ? 'bg-slate-800 text-slate-500' : 'bg-amber-500 text-slate-950'}`}>{item.badge}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+
+          <div className="mt-6 pt-6 border-t border-white/5 shrink-0">
+            <div className="bg-slate-950/80 rounded-2xl p-5 border border-amber-500/10">
+               <div className="flex justify-between items-center mb-3">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">My Power Points</span>
+                  <div className="flex items-center space-x-1">
+                     <i className="fas fa-coins text-amber-500 text-[10px]"></i>
+                     <span className="text-sm font-black text-white tracking-tighter">{points.toLocaleString()}</span>
+                  </div>
+               </div>
+               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-500" style={{ width: `${Math.min((points/1000)*100, 100)}%` }}></div>
+               </div>
             </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 };
 
