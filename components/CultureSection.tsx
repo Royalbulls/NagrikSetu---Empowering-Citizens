@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { geminiService } from '../services/geminiService';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 import { LocalContext } from '../types';
 
 // Audio Helpers
@@ -21,7 +21,17 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  // Safe alignment check
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = 0;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
@@ -83,7 +93,8 @@ const CultureSection: React.FC<CultureSectionProps> = ({ onEarnPoints, context }
     setIsListening(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const inputContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const inputContext = new AudioContextClass({ sampleRate: 16000 });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sessionPromise = ai.live.connect({
@@ -129,7 +140,8 @@ const CultureSection: React.FC<CultureSectionProps> = ({ onEarnPoints, context }
 
     try {
       const buffer = await geminiService.speak(response, 'Zephyr');
-      if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       const ctx = audioContextRef.current;
       const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
       const source = ctx.createBufferSource();

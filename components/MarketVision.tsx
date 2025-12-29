@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { geminiService } from '../services/geminiService';
 import { LocalContext } from '../types';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 
 const MarketVision: React.FC<{ context: LocalContext }> = ({ context }) => {
   const [analysis, setAnalysis] = useState<string>('');

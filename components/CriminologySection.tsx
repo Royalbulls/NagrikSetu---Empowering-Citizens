@@ -1,66 +1,54 @@
-
 import React, { useState, useRef } from 'react';
 import { geminiService } from '../services/geminiService';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
-import { QuizQuestion, LocalContext } from '../types';
+import ReactMarkdown from 'react-markdown';
+import { LocalContext } from '../types';
 
 // Audio Helpers
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = 0;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
+    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
   }
   return buffer;
 }
 
-interface CriminologySectionProps {
-  onUpdatePoints: (amount: number) => void;
-  context: LocalContext;
-}
-
-const CriminologySection: React.FC<CriminologySectionProps> = ({ onUpdatePoints, context }) => {
-  const [query, setQuery] = useState('');
-  const [response, setResponse] = useState('');
+const CriminologySection: React.FC<{ onUpdatePoints: (val: number) => void; context: LocalContext }> = ({ onUpdatePoints, context }) => {
+  const [details, setDetails] = useState('');
+  const [timeOfOccurence, setTimeOfOccurence] = useState('');
+  const [direction, setDirection] = useState('');
+  const [patternResult, setPatternResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [pointPopup, setPointPopup] = useState<{ val: number; id: number } | null>(null);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const triggerPointFeedback = (val: number) => {
-    setPointPopup({ val, id: Date.now() });
-    onUpdatePoints(val);
-    setTimeout(() => setPointPopup(null), 1500);
-  };
-
-  const handleStudy = async (topic?: string) => {
-    const finalQuery = topic || query;
-    if (!finalQuery) return;
-
+  const handleDeepAnalyze = async () => {
+    if (!details) return;
     setLoading(true);
-    setResponse('');
-    setFeedbackSent(false);
-
+    setPatternResult(null);
     try {
-      const prompt = `Psychological profiling and study of: "${finalQuery}". Language: ${context.language}. markdown.`;
-      const result = await geminiService.askComplexQuestion(prompt, context);
-      setResponse(result.text || "No insights found.");
-      triggerPointFeedback(15);
+      const data = await geminiService.analyzeCrimePatterns({
+        details,
+        time: timeOfOccurence,
+        direction
+      }, context);
+      setPatternResult(data);
+      onUpdatePoints(60);
     } catch (error) {
-      setResponse("विवरण प्राप्त करने में विफल।");
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -72,12 +60,15 @@ const CriminologySection: React.FC<CriminologySectionProps> = ({ onUpdatePoints,
       setIsSpeaking(false);
       return;
     }
-    if (!response) return;
+    if (!patternResult) return;
+    const text = `${patternResult.patternIdentified}. ${patternResult.chronoAnalysis}. ${patternResult.spatialInsight}.`;
     setIsSpeaking(true);
     try {
-      const buffer = await geminiService.speak(response, 'Zephyr');
-      if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const buffer = await geminiService.speak(text, 'Zephyr');
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       const ctx = audioContextRef.current;
+      await ctx.resume();
       const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
@@ -89,50 +80,59 @@ const CriminologySection: React.FC<CriminologySectionProps> = ({ onUpdatePoints,
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-20 relative">
-      {pointPopup && (
-        <div key={pointPopup.id} className={`fixed top-1/2 left-1/2 -translate-x-1/2 z-[100] font-black text-6xl animate-bounce ${pointPopup.val > 0 ? 'text-indigo-500' : 'text-rose-500'}`}>
-          {pointPopup.val > 0 ? `+${pointPopup.val}` : pointPopup.val}
+    <div className="space-y-12 animate-fadeIn pb-32">
+      <div className="bg-slate-950 p-12 rounded-[4rem] border-l-[10px] border-rose-600 shadow-3xl relative overflow-hidden">
+        <div className="absolute top-[-30%] right-[-10%] w-[60%] h-[160%] bg-rose-600/10 blur-[120px] rounded-full"></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-10">
+          <div className="space-y-6">
+            <h2 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic leading-none">
+              अपराध <span className="text-rose-600 font-serif">पैटर्न</span> लैब
+            </h2>
+          </div>
         </div>
-      )}
-
-      <div className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border border-indigo-500/20">
-        <h3 className="text-3xl font-black text-white mb-6 flex items-center space-x-4">
-           <i className="fas fa-user-secret text-indigo-500"></i>
-           <span>अपराधी मानस (Criminology Hub)</span>
-        </h3>
-        <textarea
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="अपराधी व्यवहार के बारे में पूछें..."
-          className="w-full p-6 rounded-3xl bg-slate-950 border border-indigo-900/30 text-white min-h-[140px]"
-        />
-        <button onClick={() => handleStudy()} disabled={loading} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black mt-4 hover:bg-indigo-500 transition-all shadow-xl">
-           Analyze Case
-        </button>
       </div>
 
-      {response && !loading && (
-        <div className="bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-indigo-500/10 animate-slideUp">
-           <div className="flex space-x-3 mb-10">
-              <button onClick={handleSpeak} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isSpeaking ? 'bg-amber-500 text-slate-950 shadow-xl' : 'bg-slate-800 text-amber-500 border border-amber-500/20'}`}>
-                 <i className={`fas ${isSpeaking ? 'fa-stop-circle' : 'fa-volume-high'}`}></i>
-                 <span>{isSpeaking ? 'सुनना बंद करें' : 'सुनें (Listen)'}</span>
-              </button>
-              <button onClick={() => { navigator.clipboard.writeText(response); setCopied(true); setTimeout(()=>setCopied(false), 2000); }} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                 <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                 <span>{copied ? 'कॉपी हो गया' : 'कॉपी करें'}</span>
-              </button>
-           </div>
-           <div className="prose prose-invert prose-indigo max-w-none text-slate-200 text-lg leading-relaxed">
-              <ReactMarkdown>{response}</ReactMarkdown>
-           </div>
-           <div className="mt-12 pt-8 border-t border-white/5 flex items-center space-x-4">
-              <span className="text-[10px] font-black text-slate-500 uppercase">प्रोफाइलिंग मददगार थी?</span>
-              <button onClick={() => { triggerPointFeedback(10); setFeedbackSent(true); }} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 flex items-center justify-center transition-all"><i className="fas fa-check"></i></button>
-           </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+        <div className="lg:col-span-1 bg-slate-900 p-10 rounded-[3.5rem] border border-white/10 shadow-3xl space-y-10 relative">
+           <textarea
+             value={details}
+             onChange={(e) => setDetails(e.target.value)}
+             placeholder="क्या हुआ? एक या अधिक घटनाओं का विवरण दें..."
+             className="w-full bg-slate-950 border-2 border-white/5 rounded-[2.5rem] p-8 text-white text-lg focus:border-rose-600/50 outline-none transition-all min-h-[250px]"
+           />
+           <button 
+             onClick={handleDeepAnalyze} 
+             disabled={loading || !details} 
+             className="w-full bg-rose-600 text-white py-6 rounded-3xl font-black uppercase tracking-[0.3em] text-lg hover:bg-rose-500 shadow-3xl transition-all"
+           >
+             {loading ? <i className="fas fa-brain fa-spin"></i> : "पैटर्न विश्लेषण शुरू करें"}
+           </button>
         </div>
-      )}
+
+        <div className="lg:col-span-2 space-y-10">
+           {patternResult && !loading && (
+             <div className="bg-slate-900 rounded-[4rem] p-12 border-2 border-rose-600/20 shadow-3xl animate-slideUp relative overflow-hidden">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-8 relative z-10">
+                   <h3 className="text-4xl font-black text-white tracking-tighter uppercase italic">{patternResult.title}</h3>
+                   <button 
+                    onClick={handleSpeak}
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all ${isSpeaking ? 'bg-rose-600 text-white' : 'bg-slate-800 text-rose-500'}`}
+                   >
+                      <i className={`fas ${isSpeaking ? 'fa-stop' : 'fa-volume-high'} text-2xl`}></i>
+                   </button>
+                </div>
+                <div className="space-y-8 relative z-10">
+                   {patternResult.nextSteps?.map((step: string, i: number) => (
+                    <div key={i} className="bg-slate-850 p-8 rounded-3xl border border-white/5 flex items-start gap-6">
+                       <span className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black">{i+1}</span>
+                       <p className="text-slate-300 text-lg">{step}</p>
+                    </div>
+                   ))}
+                </div>
+             </div>
+           )}
+        </div>
+      </div>
     </div>
   );
 };

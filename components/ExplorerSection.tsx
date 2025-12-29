@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { geminiService } from '../services/geminiService';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 import { LocalContext } from '../types';
 
 interface ExplorerSectionProps {

@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { geminiService } from '../services/geminiService';
 import { LocalContext } from '../types';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 
 // Audio Helpers
 async function decodeAudioData(
@@ -11,7 +11,16 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = 0;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
@@ -81,8 +90,10 @@ const FinanceSection: React.FC<FinanceSectionProps> = ({ context, onEarnPoints, 
     setIsSpeaking(true);
     try {
       const buffer = await geminiService.speak(result, 'Kore');
-      if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       const ctx = audioContextRef.current;
+      await ctx.resume();
       const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
@@ -131,34 +142,36 @@ const FinanceSection: React.FC<FinanceSectionProps> = ({ context, onEarnPoints, 
       {loading && <div className="flex justify-center py-20"><i className="fas fa-spinner fa-spin text-emerald-500 text-4xl"></i></div>}
 
       {result && !loading && (
-        <div className="bg-slate-900 rounded-[4rem] p-10 md:p-16 shadow-3xl border border-emerald-500/10 animate-slideUp">
-           <div className="flex flex-wrap justify-between items-center mb-10 gap-6">
-              <div className="flex space-x-3">
-                 <button onClick={handleSpeak} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isSpeaking ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-500 border border-amber-500/20'}`}>
-                    <i className={`fas ${isSpeaking ? 'fa-stop-circle' : 'fa-volume-high'}`}></i>
-                    <span>{isSpeaking ? 'सुनना बंद करें' : 'सुनें (Listen)'}</span>
-                 </button>
-                 <button onClick={() => { navigator.clipboard.writeText(result); setCopied(true); setTimeout(()=>setCopied(false), 2000); }} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                    <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                    <span>{copied ? 'कॉपी हो गया' : 'कॉपी करें'}</span>
-                 </button>
-              </div>
-           </div>
+        <div className="space-y-8 animate-slideUp">
+          <div className="bg-slate-900 rounded-[4rem] p-10 md:p-16 shadow-3xl border border-emerald-500/10 relative overflow-hidden">
+             <div className="flex flex-wrap justify-between items-center mb-10 gap-6">
+                <div className="flex space-x-3">
+                   <button onClick={handleSpeak} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isSpeaking ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-500 border border-amber-500/20'}`}>
+                      <i className={`fas ${isSpeaking ? 'fa-stop-circle' : 'fa-volume-high'}`}></i>
+                      <span>{isSpeaking ? 'सुनना बंद करें' : 'सुनें (Listen)'}</span>
+                   </button>
+                   <button onClick={() => { navigator.clipboard.writeText(result); setCopied(true); setTimeout(()=>setCopied(false), 2000); }} className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                      <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
+                      <span>{copied ? 'कॉपी हो गया' : 'कॉपी करें'}</span>
+                   </button>
+                </div>
+             </div>
 
-           <div className="prose prose-invert prose-emerald max-w-none text-slate-200 text-xl leading-relaxed mb-12">
-              <ReactMarkdown>{result}</ReactMarkdown>
-           </div>
+             <div className="prose prose-invert prose-emerald max-w-none text-slate-200 text-xl leading-relaxed mb-12">
+                <ReactMarkdown>{result}</ReactMarkdown>
+             </div>
 
-           <div className="pt-8 border-t border-white/5 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">क्या जानकारी सही थी?</span>
-                 <div className="flex space-x-2">
-                    <button onClick={() => handleFeedback(true)} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all"><i className="fas fa-thumbs-up"></i></button>
-                    <button onClick={() => handleFeedback(false)} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all"><i className="fas fa-thumbs-down"></i></button>
-                 </div>
-              </div>
-              {feedbackSent && <span className="text-[10px] font-black text-emerald-500 uppercase">धन्यवाद!</span>}
-           </div>
+             <div className="pt-8 border-t border-white/5 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">क्या जानकारी सही थी?</span>
+                   <div className="flex space-x-2">
+                      <button onClick={() => handleFeedback(true)} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all"><i className="fas fa-thumbs-up"></i></button>
+                      <button onClick={() => handleFeedback(false)} disabled={feedbackSent} className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all"><i className="fas fa-thumbs-down"></i></button>
+                   </div>
+                </div>
+                {feedbackSent && <span className="text-[10px] font-black text-emerald-500 uppercase">धन्यवाद!</span>}
+             </div>
+          </div>
         </div>
       )}
     </div>

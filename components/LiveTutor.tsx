@@ -28,7 +28,17 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  // CRITICAL: Ensure byte alignment for 16-bit PCM (2 bytes per sample)
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = 0;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
@@ -42,76 +52,96 @@ async function decodeAudioData(
 
 const LiveTutor: React.FC<{ onEarnPoints: () => void }> = ({ onEarnPoints }) => {
   const [isActive, setIsActive] = useState(false);
-  const [transcript, setTranscript] = useState<string[]>([]);
   const nextStartTime = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const sessionRef = useRef<any>(null);
 
   const startSession = async () => {
-    // Initialize GoogleGenAI right before the API call as per guidelines.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    const inputContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-    
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    try {
+      // Permission and Context check
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(err => {
+        alert("Microphone access is required for the Live AI session. Please check your browser settings.");
+        throw err;
+      });
 
-    const sessionPromise = ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-      callbacks: {
-        onopen: () => {
-          setIsActive(true);
-          const source = inputContext.createMediaStreamSource(stream);
-          const scriptProcessor = inputContext.createScriptProcessor(4096, 1, 1);
-          scriptProcessor.onaudioprocess = (e) => {
-            const inputData = e.inputBuffer.getChannelData(0);
-            const l = inputData.length;
-            const int16 = new Int16Array(l);
-            for (let i = 0; i < l; i++) {
-              int16[i] = inputData[i] * 32768;
-            }
-            const pcmBlob = {
-              data: encode(new Uint8Array(int16.buffer)),
-              mimeType: 'audio/pcm;rate=16000',
-            };
-            // Always initiate sendRealtimeInput after the live session connection promise resolves.
-            sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
-          };
-          source.connect(scriptProcessor);
-          scriptProcessor.connect(inputContext.destination);
-        },
-        onmessage: async (msg) => {
-          const audioData = msg.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-          if (audioData && audioContextRef.current) {
-            const ctx = audioContextRef.current;
-            nextStartTime.current = Math.max(nextStartTime.current, ctx.currentTime);
-            const buffer = await decodeAudioData(decode(audioData), ctx, 24000, 1);
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-            source.start(nextStartTime.current);
-            nextStartTime.current += buffer.duration;
-            sourcesRef.current.add(source);
-          }
-
-          if (msg.serverContent?.interrupted) {
-            sourcesRef.current.forEach(s => s.stop());
-            sourcesRef.current.clear();
-            nextStartTime.current = 0;
-          }
-        },
-        onclose: () => setIsActive(false),
-        onerror: () => setIsActive(false),
-      },
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-        systemInstruction: "You are a friendly Hindi history and law tutor named 'Gyan Guru'. Respond warmly in Hindi.",
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (audioContextRef.current) {
+          await audioContextRef.current.resume();
+      } else {
+          audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       }
-    });
+      
+      const inputContext = new AudioContextClass({ sampleRate: 16000 });
+      const sessionPromise = ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        callbacks: {
+          onopen: () => {
+            setIsActive(true);
+            const source = inputContext.createMediaStreamSource(stream);
+            const scriptProcessor = inputContext.createScriptProcessor(4096, 1, 1);
+            scriptProcessor.onaudioprocess = (e) => {
+              const inputData = e.inputBuffer.getChannelData(0);
+              const l = inputData.length;
+              const int16 = new Int16Array(l);
+              for (let i = 0; i < l; i++) {
+                int16[i] = inputData[i] * 32768;
+              }
+              const pcmBlob = {
+                data: encode(new Uint8Array(int16.buffer)),
+                mimeType: 'audio/pcm;rate=16000',
+              };
+              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob })).catch(() => {});
+            };
+            source.connect(scriptProcessor);
+            scriptProcessor.connect(inputContext.destination);
+          },
+          onmessage: async (msg) => {
+            try {
+              const audioData = msg.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+              if (audioData && audioContextRef.current) {
+                const ctx = audioContextRef.current;
+                nextStartTime.current = Math.max(nextStartTime.current, ctx.currentTime);
+                const buffer = await decodeAudioData(decode(audioData), ctx, 24000, 1);
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(ctx.destination);
+                source.start(nextStartTime.current);
+                nextStartTime.current += buffer.duration;
+                sourcesRef.current.add(source);
+              }
 
-    sessionRef.current = await sessionPromise;
+              if (msg.serverContent?.interrupted) {
+                sourcesRef.current.forEach(s => {
+                    try { s.stop(); } catch(e) {}
+                });
+                sourcesRef.current.clear();
+                nextStartTime.current = 0;
+              }
+            } catch (err) {
+              console.warn("Message processing error:", err);
+            }
+          },
+          onclose: () => setIsActive(false),
+          onerror: (e) => {
+              console.error("Live AI Session Error:", e);
+              setIsActive(false);
+          },
+        },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
+          systemInstruction: "You are a friendly Hindi history and law tutor named 'Gyan Guru'. Respond warmly in Hindi. CRITICAL: You have a female voice, so ALWAYS use feminine Hindi grammar (स्त्रीलिंग). Use forms like 'करती हूँ', 'बताती हूँ', 'जाऊँगी'.",
+        }
+      });
+
+      sessionRef.current = await sessionPromise;
+    } catch (err) {
+        console.error("Failed to establish session:", err);
+        setIsActive(false);
+    }
   };
 
   const stopSession = () => {

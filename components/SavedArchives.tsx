@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SavedSession } from '../types';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 
 const SavedArchives: React.FC = () => {
   const [sessions, setSessions] = useState<SavedSession[]>([]);

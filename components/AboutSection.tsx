@@ -1,7 +1,19 @@
-
 import React from 'react';
 
 const AboutSection: React.FC = () => {
+  const companyInfo = {
+    name: "Royal Bulls Advisory Private Limited",
+    cin: "U74999MP2020PTC052614",
+    incorpDate: "02/09/2020",
+    pan: "AAKCR4091D",
+    address: "Near Hardaul Temple, Ballabh Nagar Ward, Sagar, Madhya Pradesh, India - 470002"
+  };
+
+  const directors = [
+    { name: "Krishna Vishwakarma", role: "Managing Director", icon: "fa-user-tie" },
+    { name: "Vandana Thakur", role: "Director", icon: "fa-user-shield" }
+  ];
+
   return (
     <div className="space-y-12 animate-fadeIn pb-24">
       {/* Hero Banner */}
@@ -20,32 +32,61 @@ const AboutSection: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        {/* Founder 1 */}
-        <div className="bg-slate-900 p-10 rounded-[3rem] border border-white/5 shadow-xl space-y-6 hover:border-blue-500/30 transition-all group">
-          <div className="w-24 h-24 bg-blue-500 rounded-[2rem] flex items-center justify-center text-slate-950 text-4xl shadow-2xl group-hover:scale-110 transition-transform">
-            <i className="fas fa-user-tie"></i>
-          </div>
+        {/* Founders / Directors Card */}
+        <div className="bg-slate-900 p-10 rounded-[3rem] border border-white/5 shadow-xl space-y-8 hover:border-blue-500/30 transition-all group">
           <div className="space-y-2">
-            <h3 className="text-3xl font-black text-white italic">Founder & Visionary</h3>
-            <p className="text-blue-500 font-black uppercase tracking-widest text-xs">The Architect of NagrikSetu</p>
+            <h3 className="text-3xl font-black text-white italic">Board of Directors</h3>
+            <p className="text-blue-500 font-black uppercase tracking-widest text-xs">The Visionaries behind the platform</p>
           </div>
-          <p className="text-slate-400 text-lg leading-relaxed">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {directors.map((director, i) => (
+              <div key={i} className="bg-slate-950 p-6 rounded-2xl border border-white/5 space-y-3">
+                 <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center text-slate-950 text-xl shadow-lg">
+                    <i className={`fas ${director.icon}`}></i>
+                 </div>
+                 <div>
+                    <p className="text-white font-black text-sm">{director.name}</p>
+                    <p className="text-slate-500 font-black uppercase text-[8px] tracking-widest">{director.role}</p>
+                 </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-slate-400 text-base leading-relaxed italic">
             इन्होंने इस डिजिटल सेतु की नींव रखी ताकि दुनिया भर का ज्ञान, विशेषकर कानून और इतिहास, एक साधारण मोबाइल यूज़र की पहुँच में हो। 
           </p>
         </div>
 
-        {/* Founder 2/Team */}
-        <div className="bg-slate-900 p-10 rounded-[3rem] border border-white/5 shadow-xl space-y-6 hover:border-amber-500/30 transition-all group">
-          <div className="w-24 h-24 bg-amber-500 rounded-[2rem] flex items-center justify-center text-slate-950 text-4xl shadow-2xl group-hover:scale-110 transition-transform">
-            <i className="fas fa-handshake"></i>
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-3xl font-black text-white italic">Co-Founder & Team</h3>
-            <p className="text-amber-500 font-black uppercase tracking-widest text-xs">Collaborators in Success</p>
-          </div>
-          <p className="text-slate-400 text-lg leading-relaxed">
-            हमारा को-फाउंडर ग्रुप और टेक्निकल टीम दिन-रात इस कोशिश में रहती है कि एआई (AI) को मानवीय संवेदनाओं और स्थानीय भाषाओं के साथ जोड़ा जा सके।
-          </p>
+        {/* Corporate Identity Card */}
+        <div className="bg-slate-950 p-10 rounded-[3rem] border-2 border-amber-500/20 shadow-xl space-y-6 relative overflow-hidden group">
+           <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12">
+              <i className="fas fa-certificate text-6xl text-amber-500"></i>
+           </div>
+           <div className="space-y-2">
+             <h3 className="text-3xl font-black text-white italic">Legal Identity</h3>
+             <p className="text-amber-500 font-black uppercase tracking-widest text-[9px]">Verified Corporate Entity</p>
+           </div>
+           <div className="space-y-4">
+              <div className="space-y-1">
+                 <p className="text-[10px] font-black text-slate-600 uppercase">Registered Name</p>
+                 <p className="text-white font-black">{companyInfo.name}</p>
+              </div>
+              <div className="flex gap-8">
+                <div className="space-y-1 flex-1">
+                   <p className="text-[10px] font-black text-slate-600 uppercase">CIN</p>
+                   <p className="text-amber-500 font-mono font-bold text-xs">{companyInfo.cin}</p>
+                </div>
+                <div className="space-y-1 flex-1">
+                   <p className="text-[10px] font-black text-slate-600 uppercase">Date of Inc.</p>
+                   <p className="text-white font-mono font-bold text-xs">{companyInfo.incorpDate}</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                 <p className="text-[10px] font-black text-slate-600 uppercase">Registered Address</p>
+                 <p className="text-slate-400 text-xs leading-relaxed">{companyInfo.address}</p>
+              </div>
+           </div>
         </div>
       </div>
 

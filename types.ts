@@ -13,40 +13,54 @@ export interface AuraStats {
   ethics: number;
   finance: number;
   culture: number;
-}
-
-export interface SearchEntry {
-  id: string;
-  query: string;
-  section: string;
-  timestamp: number;
-}
-
-export interface ContestHistory {
-  id: string;
-  title: string;
-  score: number;
-  totalQuestions: number;
-  pointsEarned: number;
-  timestamp: number;
+  nature?: number;
 }
 
 export interface UserState {
   uid?: string;
   points: number;
   level: string;
+  stage: number;
   streak: number;
+  unlockedFeatures: string[];
   name?: string;
   email?: string;
-  dob?: string;
-  place?: string;
   photo?: string;
-  detectedCountry?: string;
   detectedCity?: string;
-  detectedLanguage?: string;
-  contests?: ContestHistory[];
-  searchHistory?: SearchEntry[];
   auraStats?: AuraStats;
+}
+
+export enum AppSection {
+  LAUNCHER = 'launcher',
+  HUB = 'hub',
+  DASHBOARD = 'dashboard',
+  HISTORY = 'history',
+  LAW = 'law',
+  CONSTITUTION = 'constitution',
+  FINANCE = 'finance',
+  CITIZEN_RIGHTS = 'citizen_rights',
+  CURRENT_AFFAIRS = 'current_affairs',
+  EPAPER = 'epaper',
+  PRIVACY = 'privacy_policy',
+  TERMS = 'terms_of_service',
+  REFUND = 'refund_policy',
+  ABOUT_US = 'about_us',
+  CONTACT_US = 'contact_us',
+  POLICIES = 'policies',
+  GOV_SCHEMES = 'gov_schemes',
+  ENTREPRENEUR_HUB = 'entrepreneur_hub',
+  CULTURE_EXPLORER = 'culture_explorer',
+  DAILY_PRACTICE = 'daily_practice',
+  EXPLORER = 'explorer',
+  WEEKLY_TIMELINE = 'weekly_timeline',
+  APPLICATION_WRITER = 'application_writer',
+  CLIMATE_SHIELD = 'climate_shield',
+  EVOLUTION_HUB = 'evolution_hub',
+  SAHAYATA_KENDRA = 'sahayata_kendra',
+  NYAY_DARPAN = 'nyay_darpan',
+  JIGYASA_HUB = 'jigyasa_hub',
+  FINANCE_SHIELD = 'finance_shield',
+  EMERGENCY_LEGAL = 'emergency_legal'
 }
 
 export interface QuizQuestion {
@@ -68,6 +82,7 @@ export interface LocalContext {
   city?: string;
   lat?: number;
   lng?: number;
+  domain?: string;
 }
 
 export interface SavedSession {
@@ -102,33 +117,39 @@ export interface SchemerInsight {
   warningSigns: string[];
 }
 
-export enum AppSection {
-  HUB = 'hub',
-  DASHBOARD = 'dashboard',
-  HISTORY = 'history',
-  LAW = 'law',
-  CONSTITUTION = 'constitution',
-  FINANCE = 'finance',
-  CITIZEN_RIGHTS = 'citizen_rights',
-  CURRENT_AFFAIRS = 'current_affairs',
-  LIVE_TUTOR = 'live_tutor',
-  IMAGE_STUDY = 'image_study',
-  CRIMINOLOGY = 'criminology',
-  MY_STORY = 'my_story',
-  DAILY_PRACTICE = 'daily_practice',
-  COMPETITION = 'competition',
-  GLOBAL_SCHEMERS = 'global_schemers',
-  MARKET_VISION = 'market_vision',
-  RELIGIONS = 'religions',
-  CULTURE = 'culture',
-  SAVED_SESSIONS = 'saved_sessions',
-  SUPPORT = 'support',
-  ABOUT_US = 'about_us',
-  EXPLORER = 'explorer',
-  WEEKLY_TIMELINE = 'weekly_timeline',
-  APPLICATION_WRITER = 'application_writer',
-  EXPERT_CONNECT = 'expert_connect',
-  POLICIES = 'policies',
-  RBA_SERVICES = 'rba_services',
-  AURA_CHAMBER = 'aura_chamber'
+export interface SearchEntry {
+  query: string;
+  section: string;
+  timestamp: number;
+}
+
+export interface ContestHistory {
+  id: string;
+  title: string;
+  score: number;
+  totalQuestions: number;
+  pointsEarned: number;
+  timestamp: number;
+}
+
+export interface AssistanceRecord {
+  caseId: string;
+  timestamp: number;
+  citizenName: string;
+  citizenPhone: string;
+  citizenAddress: string;
+  problemSummary: string;
+  departmentAssigned: string;
+  legalStatutes: string;
+  paymentStatus: 'completed' | 'pending';
+  amount: number;
+}
+
+export interface PublicAlert {
+  id: string;
+  userName: string;
+  location: string;
+  issue: string;
+  timestamp: number;
+  severity: 'low' | 'medium' | 'high';
 }

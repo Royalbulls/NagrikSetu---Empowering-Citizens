@@ -1,176 +1,180 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { AppSection } from '../types';
-import { geminiService } from '../services/geminiService';
-import AdSlot from './AdSlot';
+import React, { useState, useRef, memo } from 'react';
+import { AppSection, LocalContext } from '../types.ts';
+import { geminiService } from '../services/geminiService.ts';
+import ReactMarkdown from 'react-markdown';
+import AdSlot from './AdSlot.tsx';
 
 interface KnowledgeHubProps { 
   setActiveSection: (section: AppSection) => void; 
   language: string;
+  onEarnPoints?: (val: number) => void;
 }
 
-const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language }) => {
-  const [randomFact, setRandomFact] = useState<string>('');
-  const [factLoading, setFactLoading] = useState(false);
-  const isHindi = language === 'Hindi';
+const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language, onEarnPoints }) => {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [response, setResponse] = useState('');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const fetchFact = useCallback(async () => {
-    setFactLoading(true);
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setResponse('');
     try {
-      const fact = await geminiService.generateDidYouKnow("Global History and Linguistic Laws", { language, country: 'India' });
-      setRandomFact(fact);
-    } catch (e: any) { 
-      setRandomFact(isHindi ? "संविधान हमें भाषा के चुनाव का अधिकार देता है (अनुच्छेद 343-351)।" : "The Constitution gives us the right to choose our language (Articles 343-351).");
-    } finally { 
-      setFactLoading(false); 
+      const res = await geminiService.askUniversalAI(query, { language, country: 'India' });
+      setResponse(res.text || "");
+      if (onEarnPoints) onEarnPoints(30);
+      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (e) {
+      setResponse("विवेक के सेतु से जुड़ने में क्षणिक समस्या आई।");
+    } finally {
+      setLoading(false);
     }
-  }, [language, isHindi]);
+  };
 
-  useEffect(() => {
-    fetchFact();
-  }, [fetchFact]);
-
-  const categories = [
-    {
-      title: isHindi ? "इतिहास और कालक्रम" : "History & Chronology",
-      icon: "fa-hourglass-half",
-      color: "from-amber-500 to-amber-700",
-      items: [
-        { id: AppSection.HISTORY, label: isHindi ? "पहिले और आज" : "Then vs Now", sub: "Global History Comparison", icon: "fa-monument" },
-        { id: AppSection.WEEKLY_TIMELINE, label: isHindi ? "आज का इतिहास" : "Today in History", sub: "History Wheel", icon: "fa-timeline" },
-        { id: AppSection.EXPLORER, label: isHindi ? "ग्लोबल एक्सप्लोरर" : "Global Explorer", sub: "Satellite Scan", icon: "fa-earth-asia" },
-      ]
-    },
-    {
-      title: isHindi ? "अधिकार और न्याय" : "Rights & Justice",
-      icon: "fa-scale-balanced",
-      color: "from-blue-500 to-blue-700",
-      items: [
-        { id: AppSection.CITIZEN_RIGHTS, label: isHindi ? "अधिकार और कर्तव्य" : "Rights Hub", sub: "Legal Empowerment", icon: "fa-landmark-dome" },
-        { id: AppSection.LAW, label: isHindi ? "कानून सहायता" : "Legal Aid", sub: "Ask a Question", icon: "fa-scale-unbalanced" },
-        { id: AppSection.FINANCE, label: isHindi ? "वित्तीय कवच" : "Financial Shield", sub: "Scam Protection & Rights", icon: "fa-vault" },
-        { id: AppSection.APPLICATION_WRITER, label: isHindi ? "आवेदन सहायक" : "Aavedan Writer", sub: "Draft Professional Letters", icon: "fa-file-pen" },
-        { id: AppSection.CONSTITUTION, label: isHindi ? "संवैधानिक कवच" : "Constitution", sub: "Rights Access", icon: "fa-book-open" },
-        { id: AppSection.CRIMINOLOGY, label: isHindi ? "अपराध विज्ञान" : "Criminology", sub: "Psych Profile", icon: "fa-user-secret" },
-      ]
-    },
-    {
-      title: isHindi ? "व्यक्तिगत विकास" : "Growth & Rewards",
-      icon: "fa-gem",
-      color: "from-emerald-500 to-emerald-700",
-      items: [
-        { id: AppSection.DAILY_PRACTICE, label: isHindi ? "दैनिक साधना" : "Daily Ritual", sub: "Self Mastery", icon: "fa-crown" },
-        { id: AppSection.MY_STORY, label: isHindi ? "मेरी कहानी" : "My Story", sub: "Digital Memoir", icon: "fa-feather-pointed" },
-        { id: AppSection.COMPETITION, label: isHindi ? "प्रतियोगिता" : "Competition", sub: "Leaderboard", icon: "fa-trophy" },
-      ]
-    }
+  const toolCards = [
+    { id: AppSection.HISTORY, label: "Global History", icon: "fa-earth-asia", color: "bg-amber-500", desc: "राजवंशों से लोकतंत्र तक का सफर।" },
+    { id: AppSection.CONSTITUTION, label: "Constitution", icon: "fa-building-columns", color: "bg-blue-600", desc: "आपका सर्वोच्च कानूनी सुरक्षा कवच।" },
+    { id: AppSection.EPAPER, label: "Daily ePaper", icon: "fa-bolt-lightning", color: "bg-rose-600", desc: "आज क्या चल रहा है? ताज़ा विश्लेषण।" },
+    { id: AppSection.SAHAYATA_KENDRA, label: "Help Desk", icon: "fa-handshake-angle", color: "bg-emerald-600", desc: "सरकारी समस्याओं का त्वरित समाधान।" }
   ];
 
-  const quests = [
-    { title: isHindi ? "नागरिक अधिकार" : "Citizen Rights", points: 50, icon: "fa-landmark-dome", section: AppSection.CITIZEN_RIGHTS },
-    { title: isHindi ? "वित्तीय सुरक्षा" : "Finance Safety", points: 40, icon: "fa-vault", section: AppSection.FINANCE },
-    { title: isHindi ? "इतिहास के पन्ने" : "Pages of History", points: 50, icon: "fa-scroll", section: AppSection.HISTORY }
+  const faqs = [
+    {
+      q: "Learn and Earn पॉइंट सिस्टम क्या है?",
+      a: "यह एक रिवॉर्ड सिस्टम है जहाँ आप इतिहास और कानून सीखकर पॉइंट्स कमाते हैं। जैसे-जैसे आपके पॉइंट्स बढ़ते हैं, आप 'Aura AI' और प्रीमियम फीचर्स अनलॉक कर सकते हैं।"
+    },
+    {
+      q: "इतिहास (Pehle) और संविधान (Aaj) की तुलना कैसे करें?",
+      a: "'Global History' सेक्शन में जाकर अपने शहर या किसी भी ऐतिहासिक घटना का नाम लिखें। AI आपको पुरानी व्यवस्था (Pehle) और आज के संवैधानिक अधिकारों (Aaj) का अंतर स्पष्ट करेगा।"
+    },
+    {
+      q: "क्या मैं यहाँ कानूनी सलाह ले सकता हूँ?",
+      a: "नागरिक सेतु एक 'शिक्षण और जागरूकता' प्लेटफॉर्म है। 'Sahayata Kendra' आपको सही विभाग, प्रक्रिया और दस्तावेज़ों की जानकारी देता है। गंभीर कानूनी मामलों के लिए हमेशा वकील से परामर्श लें।"
+    },
+    {
+      q: "ई-पेपर (ePaper) में क्या विशेष है?",
+      a: "हमारा ई-पेपर केवल समाचार नहीं देता, बल्कि यह बताता है कि आज की मुख्य घटनाओं का आपके नागरिक अधिकारों और कर्तव्यों पर क्या प्रभाव पड़ता है।"
+    }
   ];
 
   return (
-    <div className="space-y-12 animate-fadeIn pb-24">
-      {/* Dynamic Knowledge Banner */}
-      <div className="bg-slate-900 rounded-[3rem] p-10 border border-emerald-500/20 shadow-2xl relative overflow-hidden group">
-         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div>
-         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-            <div className="flex-1 flex items-center space-x-6">
-               <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 shrink-0 border border-emerald-500/20">
-                  <i className="fas fa-bolt text-xl animate-pulse"></i>
-               </div>
-               <div className="min-w-0">
-                  <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em] mb-1">Knowledge Radar (आज का ज्ञान)</h4>
-                  {factLoading ? (
-                    <div className="h-4 bg-white/5 rounded w-64 animate-pulse mt-1"></div>
-                  ) : (
-                    <p className="text-white font-bold italic text-lg leading-relaxed line-clamp-2">
-                      {randomFact || "सभ्यता का पहिया घूम रहा है..."}
-                    </p>
-                  )}
-               </div>
-            </div>
-            <button 
-              onClick={fetchFact}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95"
-            >
-              Scan New Facts
-            </button>
-         </div>
+    <div className="space-y-16 animate-fadeIn pb-24">
+      {/* 👑 Royal Dashboard Banner */}
+      <div className="relative royal-card rounded-[4rem] p-12 md:p-20 border border-amber-500/10 shadow-3xl overflow-hidden group">
+        <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none rotate-12 scale-150 group-hover:scale-125 transition-transform duration-1000">
+          <i className="fas fa-shield-halved text-[400px] text-white"></i>
+        </div>
+        <div className="relative z-10 space-y-12">
+           <div className="space-y-4">
+              <div className="flex items-center space-x-4 mb-4">
+                 <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping"></div>
+                 <span className="text-[10px] font-black text-amber-500 uppercase tracking-[0.5em]">Command Center Active</span>
+              </div>
+              <h2 className="text-5xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none royal-serif">नागरिक <span className="text-amber-500">सेतु</span></h2>
+              <p className="text-slate-400 text-xl md:text-3xl font-medium italic border-l-8 border-amber-500/20 pl-8 leading-relaxed max-w-4xl py-2">
+                "ज्ञान ही वह स्वर्ण है जिसे कोई चुरा नहीं सकता। अपने इतिहास और अधिकारों से आज खुद को सशक्त बनाएं।"
+              </p>
+           </div>
+
+           <div className="relative group max-w-5xl">
+              <input 
+                type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="पूछें: 'इतिहास में आज क्या हुआ था?' या 'मेरे मौलिक अधिकार क्या हैं?'"
+                className="w-full bg-slate-950/80 border-2 border-white/5 rounded-[3rem] py-8 pl-16 pr-44 text-white text-xl md:text-2xl placeholder:text-slate-800 outline-none focus:border-amber-500/40 transition-all font-medium shadow-inner"
+              />
+              <i className="fas fa-search absolute left-7 top-1/2 -translate-y-1/2 text-slate-700 group-focus-within:text-amber-500 transition-colors"></i>
+              <button 
+                onClick={handleSearch} 
+                disabled={loading || !query.trim()}
+                className="absolute right-4 top-4 bottom-4 px-12 bg-amber-500 text-slate-950 rounded-[2.5rem] font-black uppercase text-xs tracking-widest hover:bg-amber-400 shadow-2xl transition-all active:scale-95 disabled:opacity-50"
+              >
+                {loading ? <i className="fas fa-dharmachakra fa-spin text-xl"></i> : "SEARCH"}
+              </button>
+           </div>
+        </div>
       </div>
 
-      <AdSlot className="mx-4" />
+      {/* 🛠️ Rapid Tools Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {toolCards.map((tool) => (
+          <button 
+            key={tool.id} onClick={() => setActiveSection(tool.id)}
+            className="royal-card p-10 rounded-[3rem] text-left flex flex-col justify-between group h-72 border border-white/5"
+          >
+            <div className={`w-16 h-16 ${tool.color} rounded-2xl flex items-center justify-center text-white text-3xl shadow-2xl shadow-slate-950 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+              <i className={`fas ${tool.icon}`}></i>
+            </div>
+            <div>
+               <h3 className="text-2xl font-black text-white uppercase italic royal-serif group-hover:text-amber-500 transition-colors">{tool.label}</h3>
+               <p className="text-slate-500 text-sm mt-3 font-medium leading-relaxed italic">{tool.desc}</p>
+            </div>
+          </button>
+        ))}
+      </div>
 
-      {/* Learn & Earn Quests */}
-      <div className="space-y-6">
-        <h3 className="text-xl font-black text-white uppercase tracking-[0.3em] flex items-center">
-          <i className="fas fa-coins text-amber-500 mr-3"></i>
-          {isHindi ? "सीखें और कमाएं" : "Learn & Earn Quests"}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {quests.map((quest, idx) => (
-            <button
-              key={idx}
-              onClick={() => setActiveSection(quest.section)}
-              className="bg-slate-900/60 backdrop-blur-md border border-amber-500/10 hover:border-amber-500/40 p-6 rounded-3xl flex items-center justify-between group transition-all"
+      {/* 📜 Dynamic Content Area */}
+      <div ref={scrollRef}>
+        {loading && (
+          <div className="py-24 text-center space-y-8 animate-pulse">
+             <i className="fas fa-dharmachakra fa-spin text-7xl text-amber-500 opacity-20"></i>
+             <p className="text-amber-500/60 font-black uppercase tracking-[0.4em] text-[11px]">विवेक के पन्नों से सत्य खोजा जा रहा है...</p>
+          </div>
+        )}
+        {response && !loading && (
+          <div className="royal-card p-12 md:p-20 rounded-[5rem] border-2 border-amber-500/20 shadow-[0_0_80px_rgba(251,191,36,0.05)] animate-slideUp relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-10 opacity-5"><i className="fas fa-quote-right text-9xl text-amber-500"></i></div>
+             <div className="prose prose-invert prose-amber max-w-none text-slate-200 text-2xl leading-relaxed font-medium history-content">
+                <ReactMarkdown>{response}</ReactMarkdown>
+             </div>
+             <div className="mt-16 pt-10 border-t border-white/5 flex items-center justify-between">
+                <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest italic">Official Nagrik Intelligence Feed</span>
+                <button onClick={() => window.print()} className="bg-slate-800 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shadow-xl">Archive This</button>
+             </div>
+          </div>
+        )}
+      </div>
+
+      {/* ❓ FAQ Section */}
+      <div className="space-y-8">
+        <div className="flex items-center space-x-4 mb-8">
+          <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-950 shadow-lg">
+            <i className="fas fa-circle-question"></i>
+          </div>
+          <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">अक्सर पूछे जाने वाले सवाल (FAQs)</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {faqs.map((faq, idx) => (
+            <div 
+              key={idx} 
+              className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer group ${openFaq === idx ? 'bg-amber-500/10 border-amber-500/40' : 'bg-slate-900 border-white/5 hover:border-amber-500/20'}`}
+              onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
             >
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-slate-950 transition-all">
-                  <i className={`fas ${quest.icon} text-lg`}></i>
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-black text-white uppercase tracking-tight">{quest.title}</p>
-                  <p className="text-[10px] text-amber-500/60 font-black uppercase">Earn +{quest.points} Coins</p>
-                </div>
+              <div className="flex justify-between items-center gap-4">
+                <h4 className={`text-lg font-black uppercase italic royal-serif transition-colors ${openFaq === idx ? 'text-amber-500' : 'text-white group-hover:text-amber-400'}`}>
+                  {faq.q}
+                </h4>
+                <i className={`fas fa-chevron-down text-xs transition-transform duration-500 ${openFaq === idx ? 'rotate-180 text-amber-500' : 'text-slate-700'}`}></i>
               </div>
-              <i className="fas fa-chevron-right text-slate-700 group-hover:text-amber-500 transition-colors"></i>
-            </button>
+              {openFaq === idx && (
+                <div className="mt-6 pt-6 border-t border-white/5 animate-fadeIn">
+                  <p className="text-slate-400 text-base leading-relaxed italic font-medium">
+                    {faq.a}
+                  </p>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Categorized Module Grid */}
-      <div className="space-y-16">
-        {categories.map((cat, idx) => (
-          <div key={idx} className="space-y-8">
-            <div className="flex items-center space-x-4">
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cat.color} flex items-center justify-center text-white shadow-lg`}>
-                <i className={`fas ${cat.icon}`}></i>
-              </div>
-              <h3 className="text-2xl font-black text-white uppercase tracking-tighter italic">{cat.title}</h3>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {cat.items.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className="group bg-slate-900 border border-white/5 hover:border-amber-500/30 p-8 rounded-[2.5rem] text-left hover:scale-[1.02] transition-all shadow-xl relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none scale-125">
-                    <i className={`fas ${item.icon} text-[120px] text-white`}></i>
-                  </div>
-                  <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center mb-6 shadow-inner border border-white/5 text-amber-500 group-hover:bg-amber-500 group-hover:text-slate-950 transition-all">
-                    <i className={`fas ${item.icon} text-xl`}></i>
-                  </div>
-                  <h4 className="text-xl font-black text-white mb-1">{item.label}</h4>
-                  <p className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">{item.sub}</p>
-                  <div className="mt-6 flex items-center text-amber-500 text-[10px] font-black uppercase tracking-widest group-hover:translate-x-2 transition-transform">
-                    <span>EXPLORE NOW</span>
-                    <i className="fas fa-arrow-right ml-2"></i>
-                  </div>
-                </button>
-              ))}
-            </div>
-            {idx === 0 && <AdSlot />}
-          </div>
-        ))}
-      </div>
+      {/* 📢 Premium Ad Space */}
+      <AdSlot className="h-[300px] border-amber-500/5 shadow-2xl rounded-[4rem]" />
     </div>
   );
 };
 
-export default KnowledgeHub;
+export default memo(KnowledgeHub);

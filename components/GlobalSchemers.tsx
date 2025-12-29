@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { geminiService } from '../services/geminiService';
 import { LocalContext, SchemerInsight } from '../types';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 
 // Audio Helpers
 async function decodeAudioData(
@@ -11,7 +11,16 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = copy.byteOffset;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
@@ -82,8 +91,10 @@ const GlobalSchemers: React.FC<GlobalSchemersProps> = ({ context, onEarnPoints }
     setIsSpeaking(true);
     try {
       const buffer = await geminiService.speak(textToSpeak, 'Kore');
-      if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       const ctx = audioContextRef.current;
+      await ctx.resume();
       const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;

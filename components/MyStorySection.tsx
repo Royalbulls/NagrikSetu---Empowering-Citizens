@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { geminiService } from '../services/geminiService';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 import { LocalContext } from '../types';
 
 // Audio Helpers
@@ -31,7 +31,16 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = copy.byteOffset;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
@@ -68,7 +77,8 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
     setIsListening(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const inputContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const inputContext = new AudioContextClass({ sampleRate: 16000 });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sessionPromise = ai.live.connect({
@@ -79,16 +89,13 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
             const scriptProcessor = inputContext.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
-              const l = inputData.length;
-              const int16 = new Int16Array(l);
-              for (let i = 0; i < l; i++) {
-                int16[i] = inputData[i] * 32768;
-              }
+              const int16 = new Int16Array(inputData.length);
+              for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
               const pcmBlob = {
                 data: encode(new Uint8Array(int16.buffer)),
                 mimeType: 'audio/pcm;rate=16000',
               };
-              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob })).catch(err => console.error("Transcription input failed:", err));
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputContext.destination);
@@ -149,11 +156,12 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
     setIsSpeaking(true);
 
     try {
-      // Use Zephyr for a clear narration voice
       const buffer = await geminiService.speak(biography, 'Zephyr');
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       }
+      await audioContextRef.current.resume();
       const ctx = audioContextRef.current;
       const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
       
@@ -230,9 +238,8 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
 
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 animate-fadeIn">
-          <div className="book"><div className="page"></div></div>
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-amber-500 font-black text-lg uppercase tracking-[0.3em] mt-6 animate-pulse">आपकी यादों को संजोया जा रहा है...</p>
-          <p className="text-slate-500 text-sm mt-2">AI आपकी कहानी का इतिहास रच रहा है</p>
         </div>
       )}
 
@@ -249,7 +256,7 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
             </div>
             <button 
               onClick={handleSpeak}
-              className={`flex items-center space-x-4 px-8 py-4 rounded-2xl transition-all font-black text-xs uppercase tracking-widest ${isSpeaking ? 'bg-amber-500 text-slate-950 shadow-xl scale-105 animate-pulse' : 'bg-slate-800 text-amber-500 hover:bg-slate-750 border border-amber-500/20'}`}
+              className={`flex items-center space-x-4 px-8 py-4 rounded-2xl transition-all font-black text-xs uppercase tracking-widest ${isSpeaking ? 'bg-amber-500 text-slate-950 shadow-xl scale-105 animate-pulse' : 'bg-slate-800 text-amber-500 border border-amber-500/20'}`}
             >
               <i className={`fas ${isSpeaking ? 'fa-stop-circle text-xl' : 'fa-play-circle text-xl'}`}></i>
               <span>{isSpeaking ? 'सुनना बंद करें' : 'कहानी सुनें (Listen)'}</span>
@@ -264,26 +271,6 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
             <div className="flex items-center space-x-3 bg-amber-500/5 px-6 py-3 rounded-2xl border border-amber-500/10">
               <i className="fas fa-shield-heart text-amber-500"></i>
               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Digital History Archive V1.0</p>
-            </div>
-            <div className="flex space-x-4">
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(biography);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-                className={`flex items-center space-x-2 px-6 py-3 rounded-2xl transition-all font-black text-xs uppercase tracking-widest border ${copied ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'text-amber-500/50 hover:text-amber-500 border-amber-500/10 hover:border-amber-500/30 bg-slate-800/50'}`}
-              >
-                <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                <span>{copied ? 'कॉपी हो गया' : 'कॉपी करें'}</span>
-              </button>
-              <button 
-                onClick={() => window.print()}
-                className="text-amber-500/50 hover:text-amber-500 bg-slate-800/50 border border-amber-500/10 hover:border-amber-500/30 px-6 py-3 rounded-2xl text-xs font-black uppercase flex items-center transition-all shadow-lg"
-              >
-                <i className="fas fa-print mr-2"></i>
-                प्रिंट करें (Print/PDF)
-              </button>
             </div>
           </div>
         </div>

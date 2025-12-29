@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { geminiService } from '../services/geminiService';
 import { LocalContext } from '../types';
-import ReactMarkdown from 'https://esm.sh/react-markdown';
+import ReactMarkdown from 'react-markdown';
 
 interface ApplicationWriterProps {
   context: LocalContext;

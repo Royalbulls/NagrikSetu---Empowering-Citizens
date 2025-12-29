@@ -1,9 +1,9 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 
 interface AdSlotProps {
   slotId?: string;
-  format?: 'auto' | 'fluid' | 'rectangle';
+  format?: 'auto' | 'fluid' | 'rectangle' | 'horizontal';
   className?: string;
 }
 
@@ -20,30 +20,30 @@ const AdSlot: React.FC<AdSlotProps> = ({ slotId, format = 'auto', className = ""
 
   const randomQuote = inspirationalQuotes[Math.floor(Math.random() * inspirationalQuotes.length)];
 
-  // Check if we have a real ID or just the placeholder
-  const hasRealId = slotId && slotId !== "YOUR_SLOT_ID";
+  // Official Publisher ID and provided Slot ID for rbaadvisor.com
+  const PUBLISHER_ID = "ca-pub-7318770713203481";
+  const DEFAULT_SLOT_ID = "4074378239"; // Specific slot provided by the user
 
   useEffect(() => {
-    if (hasRealId) {
-      try {
-        // @ts-ignore
-        const ads = (window.adsbygoogle = window.adsbygoogle || []);
-        ads.push({});
-        setIsAdActive(true);
-      } catch (e) {
-        console.error("AdSense load error", e);
-      }
+    try {
+      // @ts-ignore
+      const ads = (window.adsbygoogle = window.adsbygoogle || []);
+      // We always attempt to push even for default slots
+      ads.push({});
+      setIsAdActive(true);
+    } catch (e) {
+      console.error("AdSense load error", e);
     }
-  }, [hasRealId]);
+  }, [slotId]);
 
   return (
-    <div className={`relative min-h-[140px] w-full rounded-[2rem] overflow-hidden bg-slate-900/60 border border-white/5 group transition-all duration-500 ${className}`}>
+    <div className={`relative min-h-[120px] md:min-h-[250px] w-full rounded-[2rem] overflow-hidden bg-slate-900/60 border border-white/5 group transition-all duration-500 my-8 ${className}`}>
       {/* Header Label */}
       <div className="absolute top-0 left-6 px-4 py-1 bg-amber-500/10 border-x border-b border-amber-500/20 rounded-b-xl z-20">
-         <span className="text-[8px] font-black uppercase tracking-[0.3em] text-amber-500/60 italic">नागरिक संदेश • Nagrik Message</span>
+         <span className="text-[8px] font-black uppercase tracking-[0.3em] text-amber-500/60 italic">नागरिक संदेश • Sponsored Public Feed</span>
       </div>
       
-      {/* Beautiful Fallback Content - No more white box */}
+      {/* Fallback Educational Content for Crawler/User */}
       <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-slate-900/50 to-slate-950/50 backdrop-blur-md">
          <i className="fas fa-quote-left text-amber-500/10 text-5xl mb-4 group-hover:scale-110 transition-transform duration-700"></i>
          <p className="text-slate-300 text-lg font-medium italic leading-relaxed max-w-xl relative z-10">
@@ -51,27 +51,24 @@ const AdSlot: React.FC<AdSlotProps> = ({ slotId, format = 'auto', className = ""
          </p>
          <div className="mt-4 flex items-center space-x-2">
             <span className="h-[1px] w-8 bg-amber-500/20"></span>
-            <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Team NagrikSetu</span>
+            <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">RBA Digital Media Mission</span>
             <span className="h-[1px] w-8 bg-amber-500/20"></span>
          </div>
       </div>
 
-      {/* AdSense Logic - Only renders if a real ID is provided */}
-      {hasRealId && (
-        <ins className="adsbygoogle relative z-30 block w-full bg-transparent"
-             style={{ display: 'block', minHeight: '140px' }}
-             data-ad-client="ca-pub-YOUR_AD_ID" 
-             data-ad-slot={slotId} 
-             data-ad-format={format}
-             data-full-width-responsive="true"></ins>
-      )}
+      {/* Actual AdSense Integration */}
+      <ins className="adsbygoogle relative z-30 block w-full h-full"
+           style={{ display: 'block' }}
+           data-ad-client={PUBLISHER_ID} 
+           data-ad-slot={slotId || DEFAULT_SLOT_ID} 
+           data-ad-format={format}
+           data-full-width-responsive="true"></ins>
 
-      {/* Decorative background icon */}
       <div className="absolute -bottom-6 -right-6 opacity-[0.03] text-[150px] pointer-events-none group-hover:opacity-[0.05] transition-opacity">
-         <i className="fas fa-brain"></i>
+         <i className="fas fa-scale-balanced"></i>
       </div>
     </div>
   );
 };
 
-export default AdSlot;
+export default memo(AdSlot);
