@@ -1,22 +1,34 @@
-
-import React, { useMemo, memo } from 'react';
+import React, { useMemo } from 'react';
 import { AppSection } from '../types';
 
 interface SidebarProps {
   activeSection: AppSection;
   setActiveSection: (section: AppSection) => void;
   language: string;
-  points?: number;
+  points: number;
   unlockedFeatures: string[];
   isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
-  isGuest?: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+  isGuest: boolean;
   onLoginClick: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, setActiveSection, language, points = 0, isOpen, setIsOpen }) => {
+/**
+ * Full Sidebar module with proper exports and logic
+ */
+const Sidebar: React.FC<SidebarProps> = ({ 
+  activeSection, 
+  setActiveSection, 
+  language, 
+  points, 
+  unlockedFeatures, 
+  isOpen, 
+  setIsOpen, 
+  isGuest, 
+  onLoginClick 
+}) => {
   const isHindi = language === 'Hindi';
-
+  
   const categories = useMemo(() => [
     {
       title: isHindi ? "नागरिक सेतु (NagrikSetu)" : "NagrikSetu Hub",
@@ -24,103 +36,64 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, setActiveSection, lang
         { id: AppSection.HUB, label: isHindi ? "मुख्य डैशबोर्ड" : "Main Hub", icon: 'fa-house-chimney' },
         { id: AppSection.HISTORY, label: isHindi ? "वैश्विक इतिहास" : "Global History", icon: 'fa-earth-asia' },
         { id: AppSection.CONSTITUTION, label: isHindi ? "संविधान एवं कानून" : "Constitution", icon: 'fa-building-columns' },
+        { id: AppSection.GLOBAL_COMPARISON, label: isHindi ? "देश vs दुनिया" : "Global Audit", icon: 'fa-scale-balanced' },
         { id: AppSection.EPAPER, label: isHindi ? "आज क्या चल रहा है?" : "Daily ePaper", icon: 'fa-newspaper' },
+        { id: AppSection.NEWS_FEED, label: isHindi ? "पब्लिक फीड" : "Public Feed", icon: 'fa-rss' },
       ]
     },
     {
-      title: isHindi ? "RBA प्रीमियम सेवाएँ" : "RBA Premium Hub",
+      title: isHindi ? "विशेष सेवाएँ" : "Special Services",
       items: [
-        { id: AppSection.FINANCE, label: isHindi ? "RBA मल्टी-सर्विसेज" : "RBA Services", icon: 'fa-bullseye' },
         { id: AppSection.SAHAYATA_KENDRA, label: isHindi ? "सहायता केंद्र" : "Help Desk", icon: 'fa-handshake-angle' },
-        { id: AppSection.NYAY_DARPAN, label: isHindi ? "न्याय दर्पण" : "Justice Mirror", icon: 'fa-balance-scale' },
-        { id: AppSection.JIGYASA_HUB, label: isHindi ? "जिज्ञासा केंद्र" : "Jigyasa Hub", icon: 'fa-brain' },
-        { id: AppSection.APPLICATION_WRITER, label: isHindi ? "आवेदन लेखक" : "App Writer", icon: 'fa-pen-nib' },
+        { id: AppSection.NYAY_DARPAN, label: isHindi ? "न्याय दर्पण" : "Nyay Darpan", icon: 'fa-scale-balanced' },
+        { id: AppSection.JIGYASA_HUB, label: isHindi ? "जिज्ञासा केंद्र" : "Jigyasa Hub", icon: 'fa-lightbulb' },
       ]
     }
   ], [isHindi]);
 
-  const handleNav = (id: AppSection) => {
-    setActiveSection(id);
-    if (window.innerWidth < 768) setIsOpen(false);
-  };
-
   return (
-    <>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-amber-500 text-slate-950 rounded-full z-[100] md:hidden shadow-3xl border-4 border-slate-950 hover:scale-110 active:scale-95 transition-all"
-      >
-        <i className={`fas ${isOpen ? 'fa-times' : 'fa-bars-staggered'}`}></i>
-      </button>
-
-      {isOpen && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[60] md:hidden" onClick={() => setIsOpen(false)} />
-      )}
-
-      <aside className={`fixed md:sticky top-0 left-0 h-screen w-80 bg-[#020617] border-r border-white/5 z-[70] transition-transform duration-500 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="p-8 flex flex-col h-full">
-          
-          <div className="flex items-center space-x-4 mb-12 shrink-0">
-            <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-3 rounded-2xl shadow-xl shadow-amber-500/20">
-              <i className="fas fa-bullseye text-slate-950 text-xl"></i>
+    <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-900 border-r border-white/5 transition-transform duration-300 lg:relative lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="h-full flex flex-col p-6 overflow-y-auto no-scrollbar">
+         <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center space-x-3">
+               <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-slate-950 shadow-lg">
+                  <i className="fas fa-bridge text-lg"></i>
+               </div>
+               <span className="text-xl font-black uppercase tracking-tighter text-white royal-serif">NagrikSetu</span>
             </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tighter text-white uppercase italic leading-none royal-serif">NAGRIK<span className="text-amber-500">SETU</span></h1>
-              <p className="text-[7px] text-slate-500 font-black uppercase tracking-[0.5em] mt-1.5 leading-none">by Royal Bulls</p>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => handleNav(AppSection.LAUNCHER)}
-            className="flex items-center space-x-3 bg-white/5 hover:bg-amber-500/10 px-6 py-4 rounded-2xl mb-8 transition-all group border border-white/5"
-          >
-             <i className="fas fa-grid-2 text-amber-500 text-xs group-hover:scale-110 transition-transform"></i>
-             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-amber-500 transition-colors">Digital Setu Store</span>
-          </button>
-
-          <nav className="flex-1 overflow-y-auto pr-2 -mr-4 dark-scroll pb-10 space-y-12">
-            {categories.map((cat, idx) => (
-              <div key={idx} className="space-y-3">
-                <p className="text-[8px] text-slate-600 font-black uppercase tracking-[0.4em] mb-4 ml-4">{cat.title}</p>
-                {cat.items.map((item) => {
-                  const active = activeSection === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNav(item.id)}
-                      className={`w-full flex items-center px-6 py-4 rounded-2xl transition-all group relative ${
-                        active 
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-2xl shadow-amber-500/20' 
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-5">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${active ? 'bg-slate-950/10' : 'bg-slate-900 group-hover:bg-amber-500/10'}`}>
-                          <i className={`fas ${item.icon} text-sm`}></i>
-                        </div>
-                        <span className="text-[11px] font-black tracking-wide uppercase">{item.label}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+            <button onClick={() => setIsOpen(false)} className="lg:hidden text-slate-500 hover:text-white"><i className="fas fa-times"></i></button>
+         </div>
+         
+         <div className="flex-1 space-y-10">
+            {categories.map((cat, i) => (
+               <div key={i} className="space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 ml-4">{cat.title}</h4>
+                  <div className="space-y-1">
+                     {cat.items.map((item) => (
+                        <button
+                           key={item.id}
+                           onClick={() => setActiveSection(item.id)}
+                           className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${activeSection === item.id ? 'bg-amber-500 text-slate-950 shadow-xl font-black' : 'text-slate-400 hover:bg-white/5 hover:text-white font-bold'}`}
+                        >
+                           <i className={`fas ${item.icon} text-lg w-6`}></i>
+                           <span className="text-xs uppercase tracking-widest">{item.label}</span>
+                        </button>
+                     ))}
+                  </div>
+               </div>
             ))}
-          </nav>
+         </div>
 
-          <div className="mt-auto pt-6 border-t border-white/5 shrink-0">
-             <div className="bg-slate-900/50 p-6 rounded-[2rem] border border-white/5 text-center relative overflow-hidden group">
-                <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest relative z-10">Citizen Power</span>
-                <p className="text-3xl font-black text-white tracking-tighter mt-1 relative z-10 royal-serif">{points.toLocaleString()}</p>
-                <div className="mt-3 h-1 bg-slate-950 rounded-full overflow-hidden relative z-10">
-                   <div className="h-full bg-amber-500 w-2/3 shadow-[0_0_15px_rgba(245,158,11,0.6)]"></div>
-                </div>
-             </div>
-             <p className="mt-6 text-[7px] text-slate-700 font-bold uppercase tracking-widest text-center">© 2025 Royal Bulls Advisory</p>
-          </div>
-        </div>
-      </aside>
-    </>
+         {isGuest && (
+           <div className="mt-auto pt-10">
+              <button onClick={onLoginClick} className="w-full bg-slate-800 text-white py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-amber-500 hover:text-slate-950 transition-all border border-white/5 shadow-xl">
+                 Unlock Elite Features
+              </button>
+           </div>
+         )}
+      </div>
+    </aside>
   );
 };
 
-export default memo(Sidebar);
+export default Sidebar;

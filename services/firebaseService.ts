@@ -1,9 +1,10 @@
 
-import { LeaderboardEntry, UserState, ContestHistory, AssistanceRecord } from "../types.ts";
+import { LeaderboardEntry, UserState, ContestHistory, AssistanceRecord, PublishedNews } from "../types.ts";
 
 // विकास के दौरान हम LocalStorage का उपयोग करेंगे
 const STORAGE_PREFIX = 'nagrik_dev_v1_';
 const CURRENT_USER_KEY = 'nagriksetu_current_uid';
+const PUBLIC_FEED_KEY = STORAGE_PREFIX + 'public_news_feed';
 
 // ऑथेंटिकेशन स्टेट बदलने पर सूचना देने के लिए सब्सक्राइबर्स की सूची
 let authSubscribers: ((user: any | null) => void)[] = [];
@@ -37,6 +38,34 @@ export const firebaseService = {
       localStorage.setItem(CURRENT_USER_KEY, uid);
     } catch (e) {
       console.warn("LocalStorage access failed in syncUserData", e);
+    }
+  },
+
+  // 📰 Public Feed Service
+  async publishNews(news: Omit<PublishedNews, 'id' | 'timestamp' | 'likes' | 'shares'>) {
+    try {
+      const feed = JSON.parse(localStorage.getItem(PUBLIC_FEED_KEY) || '[]');
+      const newEntry: PublishedNews = {
+        ...news,
+        id: 'news-' + Math.random().toString(36).substr(2, 9),
+        timestamp: Date.now(),
+        likes: 0,
+        shares: 0
+      };
+      feed.unshift(newEntry);
+      localStorage.setItem(PUBLIC_FEED_KEY, JSON.stringify(feed.slice(0, 50))); // Keep last 50
+      return newEntry;
+    } catch (e) {
+      console.error("Publishing failed", e);
+      throw e;
+    }
+  },
+
+  async getPublicFeed(): Promise<PublishedNews[]> {
+    try {
+      return JSON.parse(localStorage.getItem(PUBLIC_FEED_KEY) || '[]');
+    } catch (e) {
+      return [];
     }
   },
 

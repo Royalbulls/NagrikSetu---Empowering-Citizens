@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { geminiService } from '../services/geminiService';
@@ -82,7 +83,8 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        // Fix: Use the latest native audio model for transcription services
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             const source = inputContext.createMediaStreamSource(stream);
@@ -95,6 +97,7 @@ const MyStorySection: React.FC<{ context: LocalContext; onEarnPoints: () => void
                 data: encode(new Uint8Array(int16.buffer)),
                 mimeType: 'audio/pcm;rate=16000',
               };
+              // Fix: Use sessionPromise to prevent race conditions during input streaming
               sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob })).catch(err => console.error("Transcription input failed:", err));
             };
             source.connect(scriptProcessor);

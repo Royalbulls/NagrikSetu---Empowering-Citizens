@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import AdSlot from './AdSlot';
+import AdSlot from './AdSlot.tsx';
 
 interface RewardCenterProps {
   onEarnPoints: (amount: number) => void;
@@ -66,7 +66,7 @@ const RewardCenter: React.FC<RewardCenterProps> = ({ onEarnPoints }) => {
                    <i className="fas fa-sack-dollar text-2xl md:text-3xl"></i>
                 </div>
                 <div>
-                   <h2 className="text-4xl font-black text-white uppercase tracking-tighter italic">सिक्का <span className="text-amber-500">केंद्र</span></h2>
+                   <h2 className="text-4xl font-black text-white uppercase tracking-tighter italic leading-none">सिक्का <span className="text-amber-500">केंद्र</span></h2>
                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em] mt-1">Nagrik Coins • Mission Support Hub</p>
                 </div>
               </div>
@@ -127,7 +127,6 @@ const RewardCenter: React.FC<RewardCenterProps> = ({ onEarnPoints }) => {
                     <p className="text-slate-500 text-[10px] font-bold uppercase">Please stay on this screen to validate points</p>
                  </div>
                  
-                 {/* 📺 The Ad Slot that appears during mining */}
                  <div className="w-full mt-10">
                     <AdSlot className="h-[250px] shadow-2xl" />
                  </div>

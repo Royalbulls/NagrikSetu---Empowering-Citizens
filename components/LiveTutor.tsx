@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 
@@ -76,7 +77,8 @@ const LiveTutor: React.FC<{ onEarnPoints: () => void }> = ({ onEarnPoints }) => 
       
       const inputContext = new AudioContextClass({ sampleRate: 16000 });
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        // Fix: Use the latest native audio model as per coding guidelines
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             setIsActive(true);
@@ -93,6 +95,7 @@ const LiveTutor: React.FC<{ onEarnPoints: () => void }> = ({ onEarnPoints }) => 
                 data: encode(new Uint8Array(int16.buffer)),
                 mimeType: 'audio/pcm;rate=16000',
               };
+              // Fix: CRITICAL: Solely rely on sessionPromise resolves to send realtime input
               sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob })).catch(() => {});
             };
             source.connect(scriptProcessor);

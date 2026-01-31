@@ -2,7 +2,6 @@
   "name": "Royal Bulls Advisory Premium Console",
   "description": "Exclusive multi-app hub by Royal Bulls Advisory. Empowering citizens through Global History, Constitution Law, and Elite Wealth Advisory.",
   "requestFramePermissions": [
-    "camera",
     "microphone",
     "geolocation"
   ]
