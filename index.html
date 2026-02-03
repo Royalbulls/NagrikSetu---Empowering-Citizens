@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="hi" style="scroll-behavior: smooth;">
 <head>
-    <!-- Google AdSense Auto Ads & Verification -->
+    <!-- Google AdSense Verification Methods -->
     <meta name="google-adsense-account" content="ca-pub-7318770713203481">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7318770713203481" crossorigin="anonymous"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7318770713203481"
+     crossorigin="anonymous"></script>
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,16 +19,33 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Inter:wght@400;900&family=Playfair+Display:ital,wght@0,900;1,900&display=swap" rel="stylesheet">
     <style>
+        :root {
+          --royal-gold: #fbbf24;
+          --royal-gold-muted: rgba(251, 191, 36, 0.1);
+          --deep-slate: #020617;
+          --glass-bg: rgba(15, 23, 42, 0.7);
+        }
+
         body {
             font-family: 'Inter', 'Noto+Sans+Devanagari', sans-serif;
-            background-color: #020617;
+            background-color: var(--deep-slate);
             color: #cbd5e1;
             margin: 0;
             padding: 0;
+            overflow-x: hidden;
         }
+
         h1, h2, h3, .royal-serif {
             font-family: 'Playfair Display', serif;
         }
+
+        /* Standardized Glassmorphism */
+        .glass-panel {
+          background: var(--glass-bg);
+          backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
         #root:empty::after {
             content: "";
             position: fixed;
@@ -37,19 +55,29 @@
             height: 50px;
             margin: -25px 0 0 -25px;
             border: 5px solid rgba(245, 158, 11, 0.1);
-            border-top-color: #fbbf24;
+            border-top-color: var(--royal-gold);
             border-radius: 50%;
             animation: spin 1s infinite linear;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
+        /* Premium Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--deep-slate); }
+        ::-webkit-scrollbar-thumb { 
+          background: rgba(251, 191, 36, 0.2); 
+          border-radius: 10px; 
+          border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(251, 191, 36, 0.4); }
+
         .point-float {
           position: fixed;
           pointer-events: none;
           z-index: 1000;
           animation: floatUp 1.2s ease-out forwards;
           font-weight: 900;
-          color: #fbbf24;
+          color: var(--royal-gold);
           font-size: 2rem;
           text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
         }
@@ -58,23 +86,65 @@
           20% { transform: translateY(-20px) scale(1.5); opacity: 1; }
           100% { transform: translateY(-80px) scale(1); opacity: 0; }
         }
-        .dark-scroll::-webkit-scrollbar { width: 4px; }
-        .dark-scroll::-webkit-scrollbar-track { background: transparent; }
-        .dark-scroll::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 10px; }
-        .animate-fadeIn { animation: fadeIn 0.8s ease-out; }
+
+        .animate-fadeIn { animation: fadeIn 0.8s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
         .animate-slideUp { animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
         .royal-card {
-            background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 1));
-            border: 1px solid rgba(251, 191, 36, 0.1);
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.95));
+            border: 1px solid rgba(251, 191, 36, 0.08);
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .royal-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to bottom right, rgba(251, 191, 36, 0.03), transparent);
+          pointer-events: none;
         }
         .royal-card:hover {
-            border-color: rgba(251, 191, 36, 0.4);
-            box-shadow: 0 20px 40px -20px rgba(251, 191, 36, 0.15);
-            transform: translateY(-5px);
+            border-color: rgba(251, 191, 36, 0.3);
+            box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.5), 0 0 30px -10px rgba(251, 191, 36, 0.1);
+            transform: translateY(-8px);
+        }
+
+        .button-premium {
+          background: var(--royal-gold);
+          color: var(--deep-slate);
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          border-bottom: 4px solid #b45309;
+          transition: all 0.2s ease;
+        }
+        .button-premium:active {
+          transform: translateY(2px);
+          border-bottom-width: 0;
+        }
+        .button-premium:hover {
+          background: #fbbf24;
+          filter: brightness(1.1);
+          box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+        }
+
+        .input-premium {
+          background: rgba(15, 23, 42, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          color: white;
+          transition: all 0.3s ease;
+        }
+        .input-premium:focus {
+          border-color: var(--royal-gold);
+          background: rgba(15, 23, 42, 0.8);
+          box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.05);
+          outline: none;
         }
     </style>
     <script type="importmap">

@@ -41,6 +41,7 @@ interface FinanceSectionProps {
 const FinanceSection: React.FC<FinanceSectionProps> = ({ context, onEarnPoints, onSearch }) => {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState('');
+  const [links, setLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -65,12 +66,16 @@ const FinanceSection: React.FC<FinanceSectionProps> = ({ context, onEarnPoints, 
 
     setLoading(true);
     setResult('');
+    setLinks([]);
     setFeedbackSent(false);
     if (onSearch) onSearch(finalQuery);
 
     try {
       const response = await geminiService.analyzeFinancialSafety(finalQuery, context);
       setResult(response.text || "जानकारी उपलब्ध नहीं है।");
+      if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        setLinks(response.candidates[0].groundingMetadata.groundingChunks);
+      }
       onEarnPoints(40);
       triggerPointsAnimation(40);
     } catch (error) {
@@ -160,6 +165,21 @@ const FinanceSection: React.FC<FinanceSectionProps> = ({ context, onEarnPoints, 
              <div className="prose prose-invert prose-emerald max-w-none text-slate-200 text-xl leading-relaxed mb-12">
                 <ReactMarkdown>{result}</ReactMarkdown>
              </div>
+
+             {/* Added: Search Grounding Link Rendering correctly as per guidelines */}
+             {links.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-white/5">
+                   <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">वित्तीय एवं आधिकारिक स्रोत (Verified Sources):</p>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {links.map((link, i) => (
+                        <a key={i} href={link.web?.uri} target="_blank" rel="noopener noreferrer" className="bg-slate-950 p-6 rounded-2xl border border-white/5 hover:border-emerald-500/30 transition-all group flex items-center justify-between shadow-lg">
+                          <span className="text-white text-xs font-bold truncate pr-4">{link.web?.title || 'Financial Link'}</span>
+                          <i className="fas fa-external-link-alt text-slate-800 group-hover:text-emerald-500"></i>
+                        </a>
+                      ))}
+                   </div>
+                </div>
+             )}
 
              <div className="pt-8 border-t border-white/5 flex items-center justify-between">
                 <div className="flex items-center space-x-3">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { firebaseService } from '../services/firebaseService';
 import { PublishedNews } from '../types';
@@ -23,10 +24,14 @@ const PublicFeed: React.FC<PublicFeedProps> = ({ initialNewsId }) => {
         // 🔗 Handle initial news item from deep link
         if (initialNewsId) {
           const item = data.find(n => n.id === initialNewsId);
-          if (item) setSelectedNews(item);
+          if (item) {
+             setSelectedNews(item);
+          } else {
+             console.warn("Deep linked news ID not found in current feed:", initialNewsId);
+          }
         }
       } catch (e) {
-        console.error(e);
+        console.error("Feed fetch failed:", e);
       } finally {
         setLoading(false);
       }
@@ -35,9 +40,8 @@ const PublicFeed: React.FC<PublicFeedProps> = ({ initialNewsId }) => {
   }, [initialNewsId]);
 
   const getShareableUrl = (id: string) => {
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('newsId', id);
-    return url.toString();
+    const base = window.location.origin + window.location.pathname;
+    return `${base}${base.endsWith('/') ? '' : '/'}?newsId=${id}`;
   };
 
   const handleShare = async (item: PublishedNews) => {
@@ -96,6 +100,7 @@ const PublicFeed: React.FC<PublicFeedProps> = ({ initialNewsId }) => {
               </div>
               <div>
                  <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">ग्लोबल <span className="text-rose-600">न्यूज़ फीड</span></h2>
+                 <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1 italic">Explore citizen broadcasts from across the nation</p>
               </div>
            </div>
         </div>

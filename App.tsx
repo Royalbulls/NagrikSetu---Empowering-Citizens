@@ -1,5 +1,6 @@
+
 import React, { Component, useState, useEffect, ErrorInfo, ReactNode } from 'react';
-import { AppSection, UserState, LocalContext } from './types.ts';
+import { AppSection, UserState, LocalContext, UserProfile } from './types.ts';
 import { firebaseService } from './services/firebaseService.ts';
 import Sidebar from './components/Sidebar.tsx';
 import Header from './components/Header.tsx';
@@ -9,69 +10,63 @@ import LawSection from './components/LawSection.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import Auth from './components/Auth.tsx';
 import SahayataKendra from './components/SahayataKendra.tsx';
-import NyayDarpan from './components/NyayDarpan.tsx';
-import JigyasaHub from './components/JigyasaHub.tsx';
-import EPaper from './components/EPaper.tsx';
-import PublicFeed from './components/PublicFeed.tsx';
-import PrivacyPage from './components/PrivacyPage.tsx';
-import TermsPage from './components/TermsPage.tsx';
-import AboutUsPage from './components/AboutUsPage.tsx';
-import ContactUsPage from './components/ContactUsPage.tsx';
 import Launcher from './components/Launcher.tsx';
+import VoiceAssistant from './components/VoiceAssistant.tsx';
+import ProfileEditor from './components/ProfileEditor.tsx';
+import FamilyTree from './components/FamilyTree.tsx';
+import PortalDirectory from './components/PortalDirectory.tsx';
 import RBAservices from './components/RBAservices.tsx';
-import FinanceSection from './components/FinanceSection.tsx';
-import CountryComparison from './components/CountryComparison.tsx';
+import LandingPage from './components/LandingPage.tsx';
+import PolicyHub from './components/PolicyHub.tsx';
+import ContactUsPage from './components/ContactUsPage.tsx';
+import DocumentationHub from './components/DocumentationHub.tsx';
+import ExpertConnect from './components/ExpertConnect.tsx';
+import SupportSection from './components/SupportSection.tsx';
+import OmiLink from './components/OmiLink.tsx';
+import ApplicationWriter from './components/ApplicationWriter.tsx';
+import GovtPitch from './components/GovtPitch.tsx';
+import TrendScanner from './components/TrendScanner.tsx';
+import EPaper from './components/EPaper.tsx';
+import NyayDarpan from './components/NyayDarpan.tsx';
+import RewardCenter from './components/RewardCenter.tsx';
+import Footer from './components/Footer.tsx';
 
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error?: Error; }
 
-// Fix: Using React.Component explicitly to resolve inheritance issues in some TypeScript environments
-class GlobalErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Explicitly declaring the state property to fix error: Property 'state' does not exist on type 'GlobalErrorBoundary'
-  public state: ErrorBoundaryState = { hasError: false };
-
-  // Fix: Explicitly declaring the props property to fix error: Property 'props' does not exist on type 'GlobalErrorBoundary'
-  public props: ErrorBoundaryProps;
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    // Fix: Redundant initialization removed as state is declared above
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
+class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("System crash log captured:", error, errorInfo); }
   
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("NagrikSetu Critical Error:", error, errorInfo);
-  }
-  
+  handleSelfRepair = () => {
+    localStorage.removeItem('nagrik_dev_v2_guest');
+    window.location.reload();
+  };
+
   render() {
-    // Fix: state and props are now correctly accessible due to explicit inheritance and declaration
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-24 h-24 bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 text-4xl mb-8 border border-rose-500/20 shadow-3xl">
-            <i className="fas fa-plug-circle-exclamation animate-pulse"></i>
+        <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-8 text-center space-y-10">
+          <div className="w-32 h-32 bg-amber-500/10 rounded-full flex items-center justify-center border-2 border-amber-500/20 animate-pulse">
+             <i className="fas fa-wrench text-amber-500 text-5xl"></i>
           </div>
-          <h2 className="text-4xl font-black text-white uppercase italic mb-4 tracking-tighter royal-serif">सिस्टम रिकवरी मोड</h2>
-          <p className="text-slate-500 mb-8 max-w-md mx-auto">एक तकनीकी त्रुटि हुई है। कृपया पृष्ठ को पुनः लोड करें।</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-amber-500 text-slate-950 px-12 py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-amber-400 shadow-3xl transition-all border-b-4 border-amber-700"
-          >
-            दोबारा शुरू करें
-          </button>
+          <div className="space-y-4">
+             <h2 className="text-4xl md:text-6xl font-black text-white italic royal-serif uppercase tracking-tighter">सिस्टम <span className="text-amber-500">मरम्मत</span> मोड</h2>
+             <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Self-Healing Protocol Active: Auto-repair sequence initiated.</p>
+          </div>
+          <button onClick={this.handleSelfRepair} className="bg-amber-500 text-slate-950 px-14 py-5 rounded-2xl font-black uppercase text-xs shadow-3xl hover:scale-105 transition-all">REPAIR & RELOAD</button>
         </div>
       );
     }
-    // Fix: Property 'props' is inherited from React.Component correctly now
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
 const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.LAUNCHER);
+  const [policyTab, setPolicyTab] = useState<'privacy' | 'terms' | 'disclaimer'>('terms');
+  const [recentSections, setRecentSections] = useState<AppSection[]>([]);
   const [user, setUser] = useState<UserState>({
     uid: 'guest',
     points: 0,
@@ -79,37 +74,30 @@ const App: React.FC = () => {
     stage: 1,
     streak: 1,
     unlockedFeatures: [],
-    auraStats: { history: 0, law: 0, ethics: 0, finance: 0, culture: 0 }
+    profile: { fullName: '', fatherName: '', dob: '', mobile: '', email: '', address: '', city: '', pinCode: '', familyTree: [] },
+    role: 'citizen'
   });
   const [language, setLanguage] = useState('Hindi');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [portalStarted, setPortalStarted] = useState(false);
 
   useEffect(() => {
     const unsubscribe = firebaseService.onAuthChange((authUser) => {
       if (authUser) {
-        setUser({
+        setUser(prev => ({
+          ...prev,
           uid: authUser.uid,
           name: authUser.displayName,
           email: authUser.email,
-          points: 500,
+          points: prev.points > 0 ? prev.points : 500,
           level: 'Scholar',
-          stage: 2,
-          streak: 5,
-          unlockedFeatures: ['HISTORY_AUDIT'],
-          auraStats: { history: 120, law: 80, ethics: 50, finance: 200, culture: 40 }
-        });
+          role: authUser.email?.endsWith('@rbaadvisor.com') ? 'admin' : 'citizen'
+        }));
         setShowAuth(false);
+        setPortalStarted(true);
       } else {
-        setUser({
-          uid: 'guest',
-          points: 0,
-          level: 'New Citizen',
-          stage: 1,
-          streak: 1,
-          unlockedFeatures: [],
-          auraStats: { history: 0, law: 0, ethics: 0, finance: 0, culture: 0 }
-        });
+        setUser(prev => ({ ...prev, uid: 'guest', role: 'citizen' }));
       }
     });
     return () => unsubscribe();
@@ -119,98 +107,107 @@ const App: React.FC = () => {
     setUser(prev => ({ ...prev, points: prev.points + amount }));
   };
 
-  const checkAccess = (section: AppSection) => {
-    if (user.uid === 'guest') {
+  const checkAccess = (section: AppSection, tab?: string) => {
+    if (user.uid === 'guest' && ![AppSection.LAUNCHER, AppSection.HUB, AppSection.DOCS, AppSection.POLICIES, AppSection.SUPPORT_MISSION, AppSection.GOVT_PITCH].includes(section)) {
       setShowAuth(true);
       return;
     }
+    if (section === AppSection.POLICIES && tab) {
+      setPolicyTab(tab as any);
+    }
+    setRecentSections(prev => {
+      const filtered = prev.filter(s => s !== section);
+      return [section, ...filtered].slice(0, 3);
+    });
     setActiveSection(section);
+    setIsSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const renderSection = () => {
-    const context: LocalContext = { language, country: 'India', city: user.detectedCity || 'India' };
+    const context: LocalContext = { language, country: 'India', city: user.profile?.city || 'India' };
+    const profile = user.profile || { fullName: '', fatherName: '', dob: '', mobile: '', email: '', address: '', city: '', pinCode: '', familyTree: [] };
 
     switch (activeSection) {
       case AppSection.LAUNCHER:
-        return <Launcher onSelectApp={checkAccess} points={user.points} isGuest={user.uid === 'guest'} onLogin={() => setShowAuth(true)} />;
+        return !portalStarted ? 
+          <LandingPage onStart={() => setPortalStarted(true)} onNavigate={checkAccess} /> : 
+          <Launcher onSelectApp={checkAccess} points={user.points} language={language} userProfile={profile} />;
+      case AppSection.SUPPORT_MISSION:
+        return <SupportSection />;
+      case AppSection.EXPERT_CONNECT:
+        return <ExpertConnect context={context} />;
+      case AppSection.PROFILE_EDITOR:
+        return <ProfileEditor profile={profile} language={language} onSave={(d) => setUser(prev => ({...prev, profile: d}))} />;
+      case AppSection.SAHAYATA_KENDRA:
+        return <SahayataKendra context={context} onEarnPoints={handleUpdatePoints} userProfile={profile} />;
       case AppSection.HUB:
-        return <KnowledgeHub setActiveSection={checkAccess} language={language} onEarnPoints={handleUpdatePoints} />;
+        return <KnowledgeHub setActiveSection={(s) => checkAccess(s)} language={language} onEarnPoints={handleUpdatePoints} />;
       case AppSection.HISTORY:
         return <HistorySection context={context} onUpdatePoints={handleUpdatePoints} />;
-      case AppSection.LOCAL_LAWS_EXPOSED:
-        return <HistorySection context={context} onUpdatePoints={handleUpdatePoints} mode="exposed" />;
       case AppSection.CONSTITUTION:
-        return <LawSection context={context} onEarnPoints={handleUpdatePoints} section={activeSection} />;
+        return <LawSection onEarnPoints={handleUpdatePoints} section={activeSection} context={context} />;
+      case AppSection.DASHBOARD:
+        return <Dashboard user={user} context={context} onLogout={()=>firebaseService.logout()} />;
+      case AppSection.FINANCE:
+        return <RBAservices />;
+      case AppSection.OMI_INTEGRATION:
+        return <OmiLink context={context} onEarnPoints={handleUpdatePoints} />;
+      case AppSection.APPLICATION_WRITER:
+        return <ApplicationWriter context={context} userName={user.name || 'Citizen'} onEarnPoints={handleUpdatePoints} />;
+      case AppSection.GOVT_PITCH:
+        return <GovtPitch />;
+      case AppSection.TREND_SCANNER:
+        return <TrendScanner context={context} onEarnPoints={handleUpdatePoints} />;
       case AppSection.EPAPER:
         return <EPaper context={context} onEarnPoints={handleUpdatePoints} user={user} />;
-      case AppSection.NEWS_FEED:
-        return <PublicFeed />;
-      case AppSection.SAHAYATA_KENDRA:
-        return <SahayataKendra context={context} onEarnPoints={handleUpdatePoints} />;
       case AppSection.NYAY_DARPAN:
         return <NyayDarpan context={context} onEarnPoints={handleUpdatePoints} />;
-      case AppSection.JIGYASA_HUB:
-        return <JigyasaHub context={context} onEarnPoints={handleUpdatePoints} />;
-      case AppSection.GLOBAL_COMPARISON:
-        return <CountryComparison context={context} onEarnPoints={handleUpdatePoints} />;
-      case AppSection.FINANCE_ADVISORY:
-        return <FinanceSection context={context} onEarnPoints={handleUpdatePoints} />;
-      case AppSection.BUSINESS_ADVISORY:
-      case AppSection.LEGAL_COMPLIANCE:
-        return <RBAservices />;
-      case AppSection.DASHBOARD:
-        return <Dashboard 
-          user={user} 
-          context={context} 
-          onSpendPoints={() => {}} 
-          onUpdateProfile={() => {}} 
-          onUpdateLanguage={setLanguage} 
-          onLogout={() => firebaseService.logout()} 
-        />;
-      case AppSection.PRIVACY:
-        return <PrivacyPage onBack={() => setActiveSection(AppSection.LAUNCHER)} />;
-      case AppSection.TERMS:
-        return <TermsPage onBack={() => setActiveSection(AppSection.LAUNCHER)} />;
-      case AppSection.ABOUT_US:
-        return <AboutUsPage onBack={() => setActiveSection(AppSection.LAUNCHER)} />;
+      case AppSection.POLICIES:
+        return <PolicyHub initialTab={policyTab} />;
       case AppSection.CONTACT_US:
-        return <ContactUsPage onBack={() => setActiveSection(AppSection.LAUNCHER)} />;
+        return <ContactUsPage />;
+      case AppSection.DOCS:
+        return <DocumentationHub />;
+      case AppSection.VOICE_ASSISTANT:
+        return <VoiceAssistant language={language} onEarnPoints={handleUpdatePoints} />;
+      case AppSection.PARIVAR_VRUKSH:
+        return <FamilyTree profile={profile} onUpdateTree={(tree) => setUser(prev => ({...prev, profile: {...prev.profile!, familyTree: tree}}))} />;
+      case AppSection.LOCAL_LAWS_EXPOSED:
+        return <HistorySection context={context} onUpdatePoints={handleUpdatePoints} mode="exposed" />;
+      case AppSection.JIGYASA_HUB:
+        return <RewardCenter onEarnPoints={handleUpdatePoints} />;
       default:
-        return <Launcher onSelectApp={checkAccess} points={user.points} isGuest={user.uid === 'guest'} onLogin={() => setShowAuth(true)} />;
+        return <Launcher onSelectApp={checkAccess} points={user.points} language={language} userProfile={profile} />;
     }
   };
 
-  if (showAuth) {
-    return <Auth onBackToHome={() => setShowAuth(false)} />;
-  }
+  if (showAuth) return <Auth onBackToHome={() => setShowAuth(false)} />;
 
   return (
     <GlobalErrorBoundary>
       <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row overflow-hidden">
-        {user.uid !== 'guest' && (
-          <Sidebar 
-            activeSection={activeSection} 
-            setActiveSection={setActiveSection} 
-            language={language} 
-            points={user.points} 
-            unlockedFeatures={user.unlockedFeatures} 
-            isOpen={isSidebarOpen} 
-            setIsOpen={setIsSidebarOpen}
-            isGuest={false}
-            onLoginClick={() => {}}
-          />
-        )}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <Sidebar 
+          activeSection={activeSection} setActiveSection={checkAccess} 
+          language={language} points={user.points} 
+          unlockedFeatures={user.unlockedFeatures} isOpen={isSidebarOpen} 
+          setIsOpen={setIsSidebarOpen} isGuest={user.uid === 'guest'} 
+          onLoginClick={() => setShowAuth(true)} userRole={user.role}
+          recentSections={recentSections}
+        />
+        <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
           <Header 
-            user={user} 
-            onOpenDashboard={() => setActiveSection(AppSection.DASHBOARD)} 
-            language={language} 
-            onLoginClick={() => setShowAuth(true)}
-            onBackToLauncher={() => setActiveSection(AppSection.LAUNCHER)}
-            activeSection={activeSection}
+            user={user} onOpenDashboard={() => checkAccess(AppSection.DASHBOARD)} 
+            language={language} onUpdateLanguage={setLanguage}
+            onLoginClick={() => setShowAuth(true)} 
+            onBackToLauncher={() => checkAccess(AppSection.LAUNCHER)} 
+            activeSection={activeSection} onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-            {renderSection()}
+          <main className="flex-1 overflow-y-auto custom-scrollbar bg-slate-950">
+            <div className="p-4 md:p-10 min-h-[calc(100vh-6rem)]">
+               {renderSection()}
+            </div>
+            {activeSection !== AppSection.LAUNCHER && <Footer onNavigate={checkAccess} />}
           </main>
         </div>
       </div>

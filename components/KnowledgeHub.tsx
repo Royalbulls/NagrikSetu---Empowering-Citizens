@@ -1,8 +1,32 @@
+
 import React, { useState, useRef, memo } from 'react';
 import { AppSection, LocalContext } from '../types.ts';
 import { geminiService } from '../services/geminiService.ts';
 import ReactMarkdown from 'react-markdown';
 import AdSlot from './AdSlot.tsx';
+
+// Audio Helpers
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = 0;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
 
 interface KnowledgeHubProps { 
   setActiveSection: (section: AppSection) => void; 
@@ -14,16 +38,28 @@ const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language,
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState('');
+  const [links, setLinks] = useState<any[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
     setLoading(true);
     setResponse('');
+    setLinks([]);
+    if (isSpeaking && sourceRef.current) sourceRef.current.stop();
+    setIsSpeaking(false);
+
     try {
       const res = await geminiService.askUniversalAI(query, { language, country: 'India' });
       setResponse(res.text || "");
+      if (res.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        setLinks(res.candidates[0].groundingMetadata.groundingChunks);
+      }
       if (onEarnPoints) onEarnPoints(30);
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (e) {
@@ -33,29 +69,49 @@ const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language,
     }
   };
 
+  const handleSpeak = async () => {
+    if (isSpeaking) {
+      if (sourceRef.current) sourceRef.current.stop();
+      setIsSpeaking(false);
+      return;
+    }
+    if (!response) return;
+    setIsSpeaking(true);
+    try {
+      const buffer = await geminiService.speak(response, 'Kore');
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+      const ctx = audioContextRef.current;
+      await ctx.resume();
+      const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.onended = () => setIsSpeaking(false);
+      sourceRef.current = source;
+      source.start(0);
+    } catch (e) { setIsSpeaking(false); }
+  };
+
   const toolCards = [
-    { id: AppSection.HISTORY, label: "Global History (Pehle)", icon: "fa-earth-asia", color: "bg-amber-500", desc: "राजवंशों और पुरानी व्यवस्थाओं का गहरा अध्ययन।", points: "+50" },
-    { id: AppSection.LOCAL_LAWS_EXPOSED, label: "पुराने नियम (Exposed)", icon: "fa-mask", color: "bg-rose-600", desc: "पुरानी कुप्रथाओं और भ्रामक नियमों का पर्दाफाश।", points: "+75" },
-    { id: AppSection.CONSTITUTION, label: "Samvidhan (Aaj)", icon: "fa-building-columns", color: "bg-blue-600", desc: "आपका सर्वोच्च कानूनी कवच - आधुनिक अधिकार।", points: "+50" },
-    { id: AppSection.EPAPER, label: "Aaj News Feed", icon: "fa-bolt-lightning", color: "bg-emerald-600", desc: "आज क्या चल रहा है? ताज़ा समाचार एवं विश्लेषण।", points: "+50" }
+    { id: AppSection.VOICE_ASSISTANT, label: "वॉयस असिस्टेंट", icon: "fa-microphone-lines", color: "bg-amber-500", desc: "मुझसे बातचीत करके इतिहास और कानून सीखें।", points: "+50" },
+    { id: AppSection.HISTORY, label: "इतिहास", icon: "fa-earth-asia", color: "bg-indigo-500", desc: "राजवंशों और पुरानी व्यवस्थाओं का गहन अध्ययन।", points: "+50" },
+    { id: AppSection.LOCAL_LAWS_EXPOSED, label: "प्रशासनिक जागरूकता", icon: "fa-eye", color: "bg-rose-600", desc: "स्थानीय नियमों and प्रशासनिक प्रक्रियाओं की स्पष्टता।", points: "+75" },
+    { id: AppSection.CONSTITUTION, label: "संवैधानिक अधिकार", icon: "fa-building-columns", color: "bg-blue-600", desc: "आपका सर्वोच्च कानूनी कवच - आधुनिक अधिकार।", points: "+50" }
   ];
 
   const faqs = [
+    {
+      q: "संस्कृति (Voice Assistant) क्या है?",
+      a: "संस्कृति एक AI वॉयस असिस्टेंट है जिससे आप बोलकर सवाल पूछ सकते हैं। यह आपको बोलकर ही जवाब देगी, जिससे पढ़ना और सीखना और भी आसान हो जाता है।"
+    },
     {
       q: "Education: Learn and Earn पॉइंट सिस्टम क्या है?",
       a: "यह एक अनूठा रिवॉर्ड सिस्टम है। जब आप इतिहास, कानून या ताज़ा खबरों के बारे में पढ़ते हैं, तो आपको 'Nagrik Power' पॉइंट्स मिलते हैं। इन पॉइंट्स से आप Aura AI और विशेषज्ञ सलाह जैसे प्रीमियम फीचर्स अनलॉक कर सकते हैं।"
     },
     {
-      q: "Global History (Pehle) और Samvidhan (Aaj) का क्या संबंध है?",
-      a: "इतिहास (Pehle) हमें सिखाता है कि हम कहाँ गलत थे और पुरानी व्यवस्थाएँ कैसे काम करती थीं। संविधान (Aaj) हमें आज के युग के अधिकार देता है। 'History Section' में आप इन दोनों की सीधी तुलना देख सकते हैं।"
-    },
-    {
-      q: "पुराने नियम (Local Laws Exposed) क्या है?",
-      a: "समाज में आज भी कई पुराने भ्रामक नियम या कुप्रथाएँ प्रचलित हैं जो संविधान के विरुद्ध हैं। यह सेक्शन ऐसे नियमों को कानून की रोशनी में परखता है और आपको सच बताता है।"
-    },
-    {
-      q: "Aaj Kya Chal Raha Hai? ताज़ा खबरें कहाँ मिलेंगी?",
-      a: "इसके लिए 'Daily News Feed' या 'EPaper' का उपयोग करें। यहाँ सिर्फ खबरें नहीं, बल्कि उन खबरों का आपके अधिकारों पर पड़ने वाले असर का संवैधानिक विश्लेषण भी मिलता है।"
+      q: "इतिहास और संवैधानिक अधिकार का क्या संबंध है?",
+      a: "इतिहास हमें सिखाता है कि हम कहाँ गलत थे और पुरानी व्यवस्थाएँ कैसे काम करती थीं। संवैधानिक अधिकार हमें आज के युग की शक्ति देते हैं। 'History Section' में आप इन दोनों की सीधी तुलना देख सकते हैं।"
     }
   ];
 
@@ -74,7 +130,7 @@ const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language,
               </div>
               <h2 className="text-5xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none royal-serif">नागरिक <span className="text-amber-500">ज्ञान</span> केंद्र</h2>
               <p className="text-slate-400 text-xl md:text-3xl font-medium italic border-l-8 border-amber-500/20 pl-8 leading-relaxed max-w-4xl py-2">
-                "इतिहास (Pehle) से सीखें, आज (Aaj) को डिकोड करें और संविधान (Samvidhan) से सशक्त बनें।"
+                "इतिहास से सीखें, वर्तमान को समझें और संवैधानिक अधिकारों से सशक्त बनें।"
               </p>
            </div>
 
@@ -91,7 +147,7 @@ const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language,
                 disabled={loading || !query.trim()}
                 className="absolute right-4 top-4 bottom-4 px-12 bg-amber-500 text-slate-950 rounded-[2.5rem] font-black uppercase text-xs tracking-widest hover:bg-amber-400 shadow-2xl transition-all active:scale-95 disabled:opacity-50"
               >
-                {loading ? <i className="fas fa-dharmachakra fa-spin text-xl"></i> : "LEARN NOW"}
+                {loading ? <i className="fas fa-dharmachakra fa-spin text-xl"></i> : "पढ़ना शुरू करें"}
               </button>
            </div>
         </div>
@@ -127,10 +183,44 @@ const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language,
         {response && !loading && (
           <div className="royal-card p-12 md:p-20 rounded-[5rem] border-2 border-amber-500/20 shadow-[0_0_80px_rgba(251,191,36,0.05)] animate-slideUp relative overflow-hidden">
              <div className="absolute top-0 right-0 p-10 opacity-5"><i className="fas fa-quote-right text-9xl text-amber-500"></i></div>
-             <div className="prose prose-invert prose-amber max-w-none text-slate-200 text-2xl leading-relaxed font-medium history-content">
+             
+             {/* Read Aloud HUD */}
+             <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-8 relative z-10">
+                <div className="flex items-center space-x-4">
+                   <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
+                      <i className="fas fa-book-open"></i>
+                   </div>
+                   <h4 className="text-white font-black text-xs uppercase tracking-widest italic">Sanskriti AI Knowledge Feed</h4>
+                </div>
+                <button 
+                  onClick={handleSpeak}
+                  className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isSpeaking ? 'bg-amber-500 text-slate-950 shadow-xl' : 'bg-slate-800 text-amber-500 hover:bg-slate-700'}`}
+                >
+                   <i className={`fas ${isSpeaking ? 'fa-stop-circle' : 'fa-volume-high'}`}></i>
+                   <span>{isSpeaking ? 'सुनना बंद करें' : 'पाठ सुनें'}</span>
+                </button>
+             </div>
+
+             <div className="prose prose-invert prose-amber max-w-none text-slate-200 text-2xl leading-relaxed font-medium history-content relative z-10">
                 <ReactMarkdown>{response}</ReactMarkdown>
              </div>
-             <div className="mt-12 pt-8 border-t border-white/5 flex justify-center">
+
+             {/* Added: Search Grounding Link Rendering correctly as per guidelines */}
+             {links.length > 0 && (
+                <div className="mt-12 pt-8 border-t border-white/5 relative z-10">
+                   <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-4">संवैधानिक एवं आधिकारिक स्रोत (Verified Sources):</p>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {links.map((link, i) => (
+                        <a key={i} href={link.web?.uri} target="_blank" rel="noopener noreferrer" className="bg-slate-950 p-6 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all group flex items-center justify-between shadow-lg">
+                          <span className="text-white text-xs font-bold truncate pr-4">{link.web?.title || 'Knowledge Link'}</span>
+                          <i className="fas fa-external-link-alt text-slate-800 group-hover:text-amber-500"></i>
+                        </a>
+                      ))}
+                   </div>
+                </div>
+             )}
+
+             <div className="mt-12 pt-8 border-t border-white/5 flex justify-center relative z-10">
                 <div className="flex items-center space-x-3 bg-emerald-500/10 px-6 py-2 rounded-full border border-emerald-500/20">
                    <i className="fas fa-coins text-emerald-500"></i>
                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Education Reward: +30 Points Earned</span>
@@ -178,4 +268,4 @@ const KnowledgeHub: React.FC<KnowledgeHubProps> = ({ setActiveSection, language,
   );
 };
 
-export default memo(KnowledgeHub);
+export default KnowledgeHub;

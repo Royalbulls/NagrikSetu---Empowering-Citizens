@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { geminiService } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
@@ -84,8 +85,8 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
 
     const locationPrompt = context.city ? `${context.city}, ${context.country}` : "मेरे वर्तमान स्थान";
     const prompt = mode === 'exposed' 
-      ? `विश्लेषण: "${locationPrompt}" में पहले कौन से 'भ्रामक नियम' प्रचलित थे और आज 'संविधान' उन पर क्या कहता है।`
-      : `शिक्षात्मक विश्लेषण: "${locationPrompt}" का 'इतिहास' (Pehle) बनाम आज की 'संवैधानिक स्थिति' (Aaj)।`;
+      ? `विश्लेषण: "${locationPrompt}" में पहले कौन सी प्रशासनिक प्रक्रियाएं प्रचलित थीं और आज 'संविधान' उन पर क्या कहता है।`
+      : `शिक्षात्मक विश्लेषण: "${locationPrompt}" का 'इतिहास' (पहले) बनाम आज की 'संवैधानिक स्थिति' (आज)।`;
 
     try {
       const result = await geminiService.askEraComparison(prompt, context);
@@ -172,20 +173,20 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
     <div className="space-y-12 animate-fadeIn pb-40">
       <div className="bg-slate-900 rounded-[4rem] p-10 md:p-16 border border-amber-500/10 shadow-3xl relative overflow-hidden">
         <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none rotate-12 scale-150">
-           <i className={`fas ${mode === 'exposed' ? 'fa-mask' : 'fa-landmark'} text-[300px] text-white`}></i>
+           <i className={`fas ${mode === 'exposed' ? 'fa-eye' : 'fa-landmark'} text-[300px] text-white`}></i>
         </div>
         <div className="relative z-10 space-y-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
              <div className="flex items-center space-x-6">
-                <div className={`w-16 h-16 ${mode === 'exposed' ? 'bg-rose-600' : 'bg-amber-500'} rounded-[2rem] flex items-center justify-center text-slate-950 text-2xl shadow-3xl`}>
-                  <i className={`fas ${mode === 'exposed' ? 'fa-mask' : 'fa-history'}`}></i>
+                <div className={`w-16 h-16 ${mode === 'exposed' ? 'bg-emerald-600' : 'bg-amber-500'} rounded-[2rem] flex items-center justify-center text-slate-950 text-2xl shadow-3xl`}>
+                  <i className={`fas ${mode === 'exposed' ? 'fa-eye' : 'fa-history'}`}></i>
                 </div>
                 <div>
                    <h2 className="text-3xl md:text-5xl font-black text-white uppercase italic tracking-tighter leading-none royal-serif">
-                     {mode === 'exposed' ? 'पुराने नियम' : 'वैश्विक इतिहास'} <span className={mode === 'exposed' ? 'text-rose-600' : 'text-amber-500'}>केंद्र</span>
+                     {mode === 'exposed' ? 'प्रशासनिक जागरूकता' : 'इतिहास एवं विरासत'} <span className={mode === 'exposed' ? 'text-emerald-600' : 'text-amber-500'}>केंद्र</span>
                    </h2>
                    <p className="text-slate-500 font-black text-[9px] uppercase tracking-[0.4em] mt-2 italic">
-                     {mode === 'exposed' ? 'Debunking Outdated Rules vs Samvidhan' : 'Pehle vs Aaj • Learn and Earn Points'}
+                     {mode === 'exposed' ? 'प्रशासनिक स्पष्टता • सूचनात्मक मार्गदर्शन' : 'ऐतिहासिक व्यवस्थाओं का अध्ययन • सीखें और आगे बढ़ें'}
                    </p>
                 </div>
              </div>
@@ -193,10 +194,10 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
              <button 
                onClick={handleLocalHeritageScan}
                disabled={loading}
-               className={`${mode === 'exposed' ? 'bg-rose-600 border-rose-800' : 'bg-emerald-600 border-emerald-800'} text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 transition-all shadow-3xl flex items-center gap-3 border-b-4 active:translate-y-1`}
+               className={`${mode === 'exposed' ? 'bg-emerald-600 border-emerald-800' : 'bg-blue-600 border-blue-800'} text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 transition-all shadow-3xl flex items-center gap-3 border-b-4 active:translate-y-1`}
              >
                <i className={`fas ${loading ? 'fa-sync fa-spin' : 'fa-location-crosshairs'}`}></i>
-               <span>मेरे शहर की शिक्षा (+75 Points)</span>
+               <span>स्थानीय विश्लेषण (+75 Points)</span>
              </button>
           </div>
 
@@ -204,7 +205,7 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
             <textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={mode === 'exposed' ? "किसी पुराने नियम या कुप्रथा के बारे में पूछें... (जैसे: पुरानी रियासत के नियम)" : "दुनिया के इतिहास या युगों के बदलाव के बारे में पूछें..."}
+              placeholder={mode === 'exposed' ? "किसी प्रशासनिक प्रक्रिया या स्थानीय नियम के बारे में पूछें..." : "दुनिया के इतिहास या युगों के बदलाव के बारे में पूछें..."}
               className="w-full bg-slate-950 border-2 border-amber-900/20 rounded-[2.5rem] p-10 text-white text-xl placeholder:text-slate-800 outline-none focus:border-amber-500/40 transition-all min-h-[160px] font-medium leading-relaxed"
             />
             <div className="absolute right-6 bottom-6 flex gap-3">
@@ -218,13 +219,13 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 space-y-6">
            <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-           <p className="text-amber-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">समय के पन्ने पलटे जा रहे हैं...</p>
+           <p className="text-amber-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">सूचना संकलित की जा रही है...</p>
         </div>
       )}
 
       {comparison && !loading && (
         <div key={comparison.location + "-comp"} className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-slideUp">
-           <div className="bg-slate-900 rounded-[3.5rem] p-10 border-l-[12px] border-rose-600 shadow-2xl space-y-6 relative overflow-hidden">
+           <div className="bg-slate-900 rounded-[3.5rem] p-10 border-l-[12px] border-amber-600 shadow-2xl space-y-6 relative overflow-hidden">
               <button 
                 onClick={() => handleCopyText(comparison.pehle, 'pehle')}
                 className={`absolute top-6 right-6 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${copied === 'pehle' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-500 hover:text-white'}`}
@@ -232,9 +233,9 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
                 <i className={`fas ${copied === 'pehle' ? 'fa-check' : 'fa-copy'}`}></i>
               </button>
               <div className="absolute top-0 right-0 p-8 opacity-5 -z-10"><i className="fas fa-hourglass-start text-8xl text-white"></i></div>
-              <h3 className="text-rose-500 font-black text-3xl italic uppercase tracking-tighter royal-serif">पहले (Pehle)</h3>
-              <p className="text-slate-400 font-black text-[9px] uppercase tracking-widest border-b border-white/5 pb-2">पुरानी व्यवस्था / भ्रम : {comparison.location}</p>
-              <div className="prose prose-invert prose-rose max-w-none text-slate-300 text-xl leading-relaxed italic">
+              <h3 className="text-amber-500 font-black text-3xl italic uppercase tracking-tighter royal-serif">ऐतिहासिक व्यवस्था</h3>
+              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest border-b border-white/5 pb-2">सम्बन्धित स्थान : {comparison.location}</p>
+              <div className="prose prose-invert prose-amber max-w-none text-slate-300 text-xl leading-relaxed italic">
                  <ReactMarkdown>{comparison.pehle}</ReactMarkdown>
               </div>
            </div>
@@ -247,8 +248,8 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
                 <i className={`fas ${copied === 'aaj' ? 'fa-check' : 'fa-copy'}`}></i>
               </button>
               <div className="absolute top-0 right-0 p-8 opacity-5 -z-10"><i className="fas fa-landmark text-8xl text-white"></i></div>
-              <h3 className="text-blue-500 font-black text-3xl italic uppercase tracking-tighter royal-serif">आज (Aaj/Samvidhan)</h3>
-              <p className="text-blue-400 font-black text-[9px] uppercase tracking-widest border-b border-white/5 pb-2">आधुनिक लोकतांत्रिक अधिकार : {comparison.location}</p>
+              <h3 className="text-blue-500 font-black text-3xl italic uppercase tracking-tighter royal-serif">आधुनिक संवैधानिक स्थिति</h3>
+              <p className="text-blue-400 font-black text-[10px] uppercase tracking-widest border-b border-white/5 pb-2">लोकतांत्रिक ढांचा : {comparison.location}</p>
               <div className="prose prose-invert prose-blue max-w-none text-slate-200 text-xl leading-relaxed font-bold">
                  <ReactMarkdown>{comparison.aaj}</ReactMarkdown>
               </div>
@@ -273,7 +274,7 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
                  </div>
                  <div className="space-y-1">
                     <h4 className="text-[11px] font-black uppercase text-amber-500 tracking-[0.4em]">NagrikSetu Education Feed</h4>
-                    <p className="text-slate-500 text-xs font-bold italic">Deep Text Insight • Pehle vs Aaj</p>
+                    <p className="text-slate-500 text-xs font-bold italic">ऐतिहासिक एवं प्रशासनिक अंतर्दृष्टि</p>
                  </div>
               </div>
               
@@ -285,12 +286,6 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
                     <i className={`fas ${isSpeaking ? 'fa-square' : 'fa-volume-high'} text-xs`}></i>
                     <span>{isSpeaking ? 'रुकें' : 'पाठ सुनें'}</span>
                  </button>
-                 <button 
-                   onClick={() => handleCopyText(response, 'main')}
-                   className={`w-11 h-11 rounded-xl transition-all flex items-center justify-center ${copied === 'main' ? 'bg-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
-                 >
-                    <i className={`fas ${copied === 'main' ? 'fa-check' : 'fa-copy'} text-sm`}></i>
-                 </button>
               </div>
            </div>
 
@@ -298,23 +293,15 @@ const HistorySection: React.FC<HistorySectionProps> = ({ onUpdatePoints, onSearc
               <div className="prose prose-invert prose-amber max-w-none text-slate-200 text-2xl leading-[1.7] font-medium history-content">
                  <ReactMarkdown>{response}</ReactMarkdown>
               </div>
-              
+
               {links.length > 0 && (
-                <div className="pt-16 border-t border-white/5 space-y-8">
-                   <div className="flex items-center gap-3">
-                      <i className="fas fa-link text-amber-500/40 text-lg"></i>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] italic">Historical References:</p>
-                   </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="mt-12 pt-8 border-t border-white/5">
+                   <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-4">आधिकारिक एवं सत्यापित स्रोत:</p>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {links.map((link, i) => (
-                        <a 
-                          key={i} href={link.web?.uri} target="_blank" rel="noopener noreferrer" 
-                          className="bg-slate-950 p-6 rounded-[2rem] border border-white/5 hover:border-amber-500/30 transition-all group flex items-center justify-between shadow-2xl"
-                        >
-                           <div className="space-y-1 pr-4 min-w-0">
-                              <p className="text-white font-black text-sm line-clamp-1 group-hover:text-amber-400 transition-colors uppercase tracking-tight">{link.web?.title || "Educational Resource"}</p>
-                           </div>
-                           <i className="fas fa-external-link-alt text-slate-800 group-hover:text-amber-500 transition-colors text-xs"></i>
+                        <a key={i} href={link.web?.uri} target="_blank" rel="noopener noreferrer" className="bg-slate-950 p-6 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all group flex items-center justify-between shadow-lg">
+                          <span className="text-white text-xs font-bold truncate pr-4">{link.web?.title || 'Education Link'}</span>
+                          <i className="fas fa-external-link-alt text-slate-800 group-hover:text-amber-500"></i>
                         </a>
                       ))}
                    </div>

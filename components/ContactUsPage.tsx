@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 const ContactUsPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
@@ -6,6 +5,11 @@ const ContactUsPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const address = "Near Hardaul Temple, Ballabh Nagar Ward No. A, Sagar, Madhya Pradesh – 470002, India";
   const email = "royalbullsadvisory412@gmail.com";
   const phone = "7869690819";
+
+  const openDirectWhatsApp = () => {
+    const msg = `नमस्ते RBA टीम,\n\nमैं 'नागरिक सेतु' पोर्टल से जुड़ा हूँ और मुझे सहायता की आवश्यकता है। कृपया संपर्क करें।`;
+    window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 p-6 md:p-20 font-sans selection:bg-amber-100">
@@ -53,6 +57,13 @@ const ContactUsPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             <section className="space-y-6">
               <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 border-l-4 border-amber-500 pl-4">Direct Contact</h2>
               <div className="space-y-4">
+                <button 
+                  onClick={openDirectWhatsApp}
+                  className="w-full flex items-center space-x-6 bg-emerald-50 p-6 rounded-2xl border border-emerald-200 hover:border-emerald-500 transition-all group"
+                >
+                   <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:bg-emerald-600 group-hover:text-white transition-all text-emerald-600"><i className="fab fa-whatsapp text-2xl"></i></div>
+                   <div className="text-left"><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">WhatsApp Support</p><p className="font-black text-2xl tracking-tighter text-slate-900">Connect Now</p></div>
+                </button>
                 <a href={`tel:${phone}`} className="flex items-center space-x-6 bg-slate-50 p-6 rounded-2xl border border-slate-100 hover:border-amber-500 transition-all group">
                    <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:bg-amber-500 group-hover:text-white transition-all"><i className="fas fa-phone"></i></div>
                    <div><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Mobile</p><p className="font-black text-2xl tracking-tighter text-slate-900">{phone}</p></div>

@@ -1,12 +1,12 @@
 
-import { LeaderboardEntry, UserState, ContestHistory, AssistanceRecord, PublishedNews } from "../types.ts";
+import { LeaderboardEntry, UserState, ContestHistory, AssistanceRecord, PublishedNews, Testimonial } from "../types";
 
-// विकास के दौरान हम LocalStorage का उपयोग करेंगे
-const STORAGE_PREFIX = 'nagrik_dev_v1_';
+const STORAGE_PREFIX = 'nagrik_dev_v2_';
 const CURRENT_USER_KEY = 'nagriksetu_current_uid';
 const PUBLIC_FEED_KEY = STORAGE_PREFIX + 'public_news_feed';
+const TESTIMONIALS_KEY = STORAGE_PREFIX + 'testimonials';
+const LIKES_KEY = STORAGE_PREFIX + 'community_likes';
 
-// ऑथेंटिकेशन स्टेट बदलने पर सूचना देने के लिए सब्सक्राइबर्स की सूची
 let authSubscribers: ((user: any | null) => void)[] = [];
 
 const notifyAuthChange = (user: any | null) => {
@@ -41,7 +41,6 @@ export const firebaseService = {
     }
   },
 
-  // 📰 Public Feed Service
   async publishNews(news: Omit<PublishedNews, 'id' | 'timestamp' | 'likes' | 'shares'>) {
     try {
       const feed = JSON.parse(localStorage.getItem(PUBLIC_FEED_KEY) || '[]');
@@ -53,7 +52,7 @@ export const firebaseService = {
         shares: 0
       };
       feed.unshift(newEntry);
-      localStorage.setItem(PUBLIC_FEED_KEY, JSON.stringify(feed.slice(0, 50))); // Keep last 50
+      localStorage.setItem(PUBLIC_FEED_KEY, JSON.stringify(feed.slice(0, 50)));
       return newEntry;
     } catch (e) {
       console.error("Publishing failed", e);
@@ -69,9 +68,52 @@ export const firebaseService = {
     }
   },
 
+  // ⭐ Testimonials Service
+  async submitTestimonial(testimonial: Omit<Testimonial, 'id' | 'timestamp'>) {
+    try {
+      const existing = await this.getTestimonials();
+      const newEntry: Testimonial = {
+        ...testimonial,
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: Date.now()
+      };
+      existing.unshift(newEntry);
+      localStorage.setItem(TESTIMONIALS_KEY, JSON.stringify(existing.slice(0, 100)));
+      return newEntry;
+    } catch (e) {
+      console.error("Testimonial failed", e);
+    }
+  },
+
+  async getTestimonials(): Promise<Testimonial[]> {
+    try {
+      const raw = localStorage.getItem(TESTIMONIALS_KEY);
+      const base: Testimonial[] = [
+        { id: '1', userName: 'Krishna V.', rating: 5, comment: 'अद्भुत पहल! संविधान को इतनी सरल भाषा में कभी नहीं समझा था।', timestamp: Date.now() - 86400000 },
+        { id: '2', userName: 'Rahul J.', rating: 5, comment: 'इतिहास (पहले) और आज के बीच का अंतर बहुत अच्छी तरह समझाया गया है।', timestamp: Date.now() - 172800000 },
+        { id: '3', userName: 'Vandana T.', rating: 4, comment: 'सहायता केंद्र से मुझे अपनी प्रॉपर्टी की समस्या में बहुत मदद मिली।', timestamp: Date.now() - 259200000 }
+      ];
+      return raw ? JSON.parse(raw) : base;
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // ❤️ Community Likes
+  async getLikesCount(): Promise<number> {
+    const val = localStorage.getItem(LIKES_KEY);
+    return val ? parseInt(val) : 12450; 
+  },
+
+  async addLike(): Promise<number> {
+    const current = await this.getLikesCount();
+    const newVal = current + 1;
+    localStorage.setItem(LIKES_KEY, newVal.toString());
+    return newVal;
+  },
+
   onAuthChange(callback: (user: any | null) => void) {
     authSubscribers.push(callback);
-    
     try {
       const lastUid = localStorage.getItem(CURRENT_USER_KEY);
       if (lastUid) {
@@ -86,11 +128,8 @@ export const firebaseService = {
         callback(null);
       }
     } catch (e) {
-      console.warn("LocalStorage access failed during onAuthChange", e);
       callback(null);
     }
-
-    // अनसब्सक्राइब फंक्शन
     return () => {
       authSubscribers = authSubscribers.filter(cb => cb !== callback);
     };
@@ -109,7 +148,6 @@ export const firebaseService = {
       notifyAuthChange({ uid, displayName: existingData.name, email: existingData.email });
       return { user: existingData };
     } else {
-      // ऑटो-साइनअप (डेवलपमेंट के लिए)
       const newUser = { uid, name: email.split('@')[0], email, points: 250, level: 'Scholar' };
       await this.syncUserData(uid, newUser);
       try { localStorage.setItem(CURRENT_USER_KEY, uid); } catch (e) {}

@@ -9,6 +9,7 @@ const EmergencyRoadLegal: React.FC<{ context: LocalContext; onEarnPoints: (v: nu
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState('');
+  const [links, setLinks] = useState<any[]>([]);
 
   const emergencyKits = [
     { title: "Car Accident Lawsuit", icon: "fa-car-burst", desc: "दुर्घटना के बाद कानूनी कदम और हर्जाना।" },
@@ -22,9 +23,13 @@ const EmergencyRoadLegal: React.FC<{ context: LocalContext; onEarnPoints: (v: nu
     if(!q) return;
     setLoading(true);
     setResult('');
+    setLinks([]);
     try {
       const res = await geminiService.askUniversalAI(`EMERGENCY LEGAL QUERY: ${q}. Focus on legal rights, insurance claims, and lawyer procedures in India.`, context);
       setResult(res.text || "");
+      if (res.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        setLinks(res.candidates[0].groundingMetadata.groundingChunks);
+      }
       onEarnPoints(60);
     } catch (e) {
       setResult("कानूनी सहायता सर्वर अभी व्यस्त है।");
@@ -97,6 +102,22 @@ const EmergencyRoadLegal: React.FC<{ context: LocalContext; onEarnPoints: (v: nu
            <div className="prose prose-invert prose-rose max-w-none text-slate-200 text-xl leading-relaxed">
               <ReactMarkdown>{result}</ReactMarkdown>
            </div>
+
+           {/* Added: Search Grounding Link Rendering correctly as per guidelines */}
+           {links.length > 0 && (
+              <div className="mt-8 pt-8 border-t border-white/5">
+                 <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-4">आधिकारिक सहायता स्रोत (Verified Links):</p>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {links.map((link, i) => (
+                      <a key={i} href={link.web?.uri} target="_blank" rel="noopener noreferrer" className="bg-slate-950 p-6 rounded-2xl border border-white/5 hover:border-rose-500/30 transition-all group flex items-center justify-between shadow-lg">
+                        <span className="text-white text-xs font-bold truncate pr-4">{link.web?.title || 'Legal Resource'}</span>
+                        <i className="fas fa-external-link-alt text-slate-800 group-hover:text-rose-500"></i>
+                      </a>
+                    ))}
+                 </div>
+              </div>
+           )}
+
            <AdSlot className="mt-12 h-[200px]" format="horizontal" />
         </div>
       )}

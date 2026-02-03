@@ -1,10 +1,33 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AdSlot from './AdSlot';
 import { geminiService } from '../services/geminiService';
 import { firebaseService } from '../services/firebaseService';
 import { LocalContext } from '../types';
 import ReactMarkdown from 'react-markdown';
+
+// Audio Helpers
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
+  let arrayBuffer = data.buffer;
+  let byteOffset = data.byteOffset;
+  if (byteOffset % 2 !== 0) {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    arrayBuffer = copy.buffer;
+    byteOffset = 0;
+  }
+  const length = Math.floor(data.byteLength / 2);
+  const dataInt16 = new Int16Array(arrayBuffer, byteOffset, length);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
 
 const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => void; user: any }> = ({ context, onEarnPoints, user }) => {
   const [edition, setEdition] = useState<any>(null);
@@ -13,10 +36,17 @@ const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => voi
   const [isPublished, setIsPublished] = useState(false);
   const [publishedUrl, setPublishedUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const fetchEdition = async () => {
     setLoading(true);
     setIsPublished(false);
+    if (isSpeaking && sourceRef.current) sourceRef.current.stop();
+    setIsSpeaking(false);
+    
     try {
       const data = await geminiService.generateDailyEdition(context);
       setEdition(data);
@@ -42,6 +72,31 @@ const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => voi
     }
   };
 
+  const handleSpeak = async () => {
+    if (isSpeaking) {
+      if (sourceRef.current) sourceRef.current.stop();
+      setIsSpeaking(false);
+      return;
+    }
+    const textToSpeak = edition?.leadStory?.content || "";
+    if (!textToSpeak) return;
+    setIsSpeaking(true);
+    try {
+      const buffer = await geminiService.speak(textToSpeak, 'Kore');
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+      const ctx = audioContextRef.current;
+      await ctx.resume();
+      const audioBuffer = await decodeAudioData(new Uint8Array(buffer), ctx, 24000, 1);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.onended = () => setIsSpeaking(false);
+      sourceRef.current = source;
+      source.start(0);
+    } catch (e) { setIsSpeaking(false); }
+  };
+
   const handlePublish = async () => {
     if (!edition || publishing) return;
     setPublishing(true);
@@ -52,38 +107,33 @@ const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => voi
         data: edition
       });
       
-      // Generate a robust shareable URL
-      const shareUrlObj = new URL(window.location.origin + window.location.pathname);
-      shareUrlObj.searchParams.set('newsId', entry.id);
-      const shareUrl = shareUrlObj.toString();
+      const url = new URL(window.location.href);
+      url.searchParams.set('newsId', entry.id);
+      const finalUrl = url.toString();
       
-      setPublishedUrl(shareUrl);
+      setPublishedUrl(finalUrl);
       onEarnPoints(100); 
       setIsPublished(true);
       
       const shareTitle = `📰 नागरिक सेतु: विशेष संस्करण`;
-      const shareText = `🔥 Headline: ${edition.leadStory.title}\n\n📖 पूरा अखबार पढ़ने के लिए इस लिंक पर क्लिक करें:\n${shareUrl}`;
+      const shareText = `🔥 Headline: ${edition.leadStory.title}\n\n📖 पूरा अखबार पढ़ने के लिए इस लिंक पर क्लिक करें:\n${finalUrl}`;
 
-      // 📱 Try Native Share First
       if (navigator.share) {
         try {
           await navigator.share({
             title: shareTitle,
             text: `नागरिक सेतु विशेष: ${edition.leadStory.title}`,
-            url: shareUrl,
+            url: finalUrl,
           });
         } catch (e) {
-          // Fallback if native share fails or is cancelled
           if ((e as Error).name !== 'AbortError') {
              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
           }
         }
       } else {
-        // 💬 Direct WhatsApp Fallback
         window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
       }
 
-      // Points animation
       const div = document.createElement('div');
       div.className = 'point-float';
       div.innerText = `+100 ANCHOR POINTS`;
@@ -146,7 +196,7 @@ const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => voi
             <button 
               onClick={handlePublish}
               disabled={publishing}
-              className={`flex-1 md:flex-none px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 ${isPublished ? 'bg-emerald-600 text-white border-b-4 border-emerald-800 active:border-b-0' : 'bg-rose-600 hover:bg-rose-500 text-white border-b-4 border-rose-800 active:border-b-0'}`}
+              className={`flex-1 md:flex-none px-8 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 ${isPublished ? 'bg-emerald-600 text-white border-b-4 border-emerald-800 active:border-b-0' : 'bg-rose-600 hover:bg-rose-500 text-white border-b-4 border-rose-800 active:border-b-0'}`}
             >
               {publishing ? <i className="fas fa-circle-notch fa-spin"></i> : (isPublished ? <i className="fab fa-whatsapp"></i> : <i className="fas fa-paper-plane"></i>)}
               <span>{isPublished ? 'Share on WhatsApp' : 'Publish & Share (+100)'}</span>
@@ -181,7 +231,6 @@ const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => voi
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 bg-white border-b-4 border-slate-950 divide-y-2 lg:divide-y-0 lg:divide-x-2 divide-slate-300">
-         
          <div className="lg:col-span-3 p-6 space-y-8 bg-slate-50">
             <div className="border-b-4 border-rose-700 pb-2 mb-6">
                <h3 className="text-xl font-black text-rose-700 uppercase italic">संक्षेप में (Briefs)</h3>
@@ -198,9 +247,18 @@ const EPaper: React.FC<{ context: LocalContext; onEarnPoints: (v: number) => voi
 
          <div className="lg:col-span-6 p-6 md:p-10 space-y-12">
             <div className="space-y-6">
-               <h2 className="text-4xl md:text-6xl font-black leading-[0.95] tracking-tighter font-serif text-slate-900 decoration-rose-700/20 underline underline-offset-8">
-                  {edition?.leadStory?.title || 'मुख्य समाचार'}
-               </h2>
+               <div className="flex justify-between items-start">
+                  <h2 className="text-4xl md:text-6xl font-black leading-[0.95] tracking-tighter font-serif text-slate-900 decoration-rose-700/20 underline underline-offset-8 flex-1">
+                    {edition?.leadStory?.title || 'मुख्य समाचार'}
+                  </h2>
+                  <button 
+                    onClick={handleSpeak}
+                    className={`ml-4 w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isSpeaking ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    title="Read Main Story"
+                  >
+                    <i className={`fas ${isSpeaking ? 'fa-stop' : 'fa-volume-high'}`}></i>
+                  </button>
+               </div>
                <p className="text-xl font-bold text-slate-600 italic border-l-4 border-slate-900 pl-6 leading-relaxed">
                   {edition?.leadStory?.subHeadline}
                </p>

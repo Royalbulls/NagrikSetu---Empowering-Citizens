@@ -1,7 +1,33 @@
-import { GoogleGenAI, Type, Modality, GenerateContentResponse } from "@google/genai";
-import { LocalContext, Competition, LeaderboardEntry, SchemerInsight, TimelineEvent, QuizQuestion } from "../types";
 
-const PERSONA_INSTRUCTION = "CRITICAL: You are a FEMALE guide named 'Sanskriti', the voice of 'NagrikSetu' by 'RBA Advisor'. In Hindi, ALWAYS use feminine grammar (स्त्रीलिंग). Your mission is 'Civic Education and Empowerment'. You compare 'Pehle' (The Past/Traditional/Feudal ways) with 'Aaj' (The Modern Constitutional era/Samvidhan). When the user mentions 'Local Laws Exposed', interpret it as misleading, outdated, or oppressive rules from the past, and contrast them with the 'Samvidhan' (Indian Constitution) of today. Always encourage the 'Learn and Earn' point system, explaining that reading and learning increases their 'Nagrik Power' (Citizen Power).";
+import { GoogleGenAI, Type, Modality, GenerateContentResponse } from "@google/genai";
+import { LocalContext, Competition, LeaderboardEntry, SchemerInsight, TimelineEvent, QuizQuestion, FamilyMember, TrendItem, UserProfile } from "../types";
+
+const PERSONA_INSTRUCTION = (lang: string) => `
+ROLE: You are 'Sanskriti', the Sovereign Spirit of 'NagrikSetu' and a world-class expert in Indian Legal History and Constitutional Jurisprudence.
+
+MISSION: To bridge the gap between ancient administrative systems and modern democratic rights, empowering citizens through the 'Pehle vs Aaj' (Past vs Present) comparative framework.
+
+CORE FRAMEWORK:
+1. 'पहले' (The Past): Analyze monarchical, feudal, or colonial systems. Focus on arbitrary power, lack of fundamental protections, and the struggle for dignity.
+2. 'आज' (The Present): Analyze the Indian Constitution (Samvidhan). Focus on the Rule of Law, Fundamental Rights (Articles 14-32), and the power of the citizen.
+3. THE BRIDGE: Show how the transition happened, emphasizing that 'Aaj' is a shield earned through history.
+
+TONE & STYLE:
+- Calm, respectful, dignified, and neutral.
+- Use 'Academic and Informational' vocabulary.
+- Respond strictly in ${lang}. 
+- If ${lang} is Hindi, use highly respectful feminine grammar (e.g., "मैं आपको बताती हूँ...", "मैं समझा सकती हूँ...").
+- Be empowering but never confrontational. 
+
+LEGAL COMPLIANCE:
+- Mandatory Disclaimer: "This is for informational/educational purposes and is not legal advice."
+- Neutrality: Avoid political bias or taking sides in active litigation.
+- Focus on 'Due Process' and 'Constitutional Remedies'.
+
+STRUCTURE:
+- When explaining a law or article, always provide the historical context (Pehle) before the modern protection (Aaj).
+- Use grounding (Google Search) to provide citations for specific landmark judgments or acts.
+`;
 
 const safeParseJson = (text: string | undefined) => {
   if (!text) return null;
@@ -18,7 +44,7 @@ const safeParseJson = (text: string | undefined) => {
     const jsonStr = cleanedText.substring(startIdx, endIdx + 1);
     return JSON.parse(jsonStr);
   } catch (e) {
-    console.warn("NagrikSetu JSON Parse failed. Input snippet:", text?.substring(0, 100));
+    console.warn("NagrikSetu JSON Parse failed.", text?.substring(0, 100));
     return null;
   }
 };
@@ -29,354 +55,312 @@ export const geminiService = {
     try {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `सुनाएँ: ${text || ""}` }] }],
+        contents: [{ parts: [{ text: text || "" }] }],
         config: { 
           responseModalities: [Modality.AUDIO], 
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } } 
         }
       });
       const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!data) throw new Error("Audio synthesis returned no data stream.");
-      
-      const cleanedData = data.replace(/\s/g, '');
-      const binary = atob(cleanedData);
+      if (!data) throw new Error("Audio synthesis failed.");
+      const binary = atob(data.replace(/\s/g, ''));
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       return bytes;
     } catch (err) {
-      console.error("Critical Speech synthesis failure:", err);
       throw err;
     }
   },
 
-  async askPillar(pillar: string, query: string, context: LocalContext): Promise<GenerateContentResponse> {
+  async compareArticles(artA: string, artB: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    let specificPrompt = "";
-    if (pillar === "LOCAL_EXPOSED") {
-      specificPrompt = `Topic: Local Laws Exposed vs Samvidhan. Context: ${query}. Instructions: Explain how people were misled in 'Pehle' (the past) by feudal customs or wrong rules and what the 'Samvidhan' (Constitution) says 'Aaj' (today) to protect them. Use text-based deep analysis.`;
-    } else if (pillar === "HISTORY") {
-      specificPrompt = `Topic: Global History (Pehle) vs Modern Reality (Aaj). Context: ${query}. Instructions: Provide a comparative text analysis of the historical evolution versus today's context. Focus on education and learning.`;
-    } else if (pillar === "AAJ") {
-      specificPrompt = `Topic: Today's Reality (Aaj Kya Chal Raha Hai). Context: ${query}. Instructions: Analyze the latest events and their connection to constitutional rights. Use Google Search for accuracy. Explain how this affects a citizen's power.`;
-    } else if (pillar === "SAMVIDHAN") {
-      specificPrompt = `Topic: Samvidhan (Indian Constitution). Context: ${query}. Instructions: Explain the specific constitutional articles or legal frameworks applicable 'Aaj'. Contrast with how things were 'Pehle'.`;
-    } else {
-      specificPrompt = query;
-    }
-
+    const prompt = `Perform a deep comparative analysis between Indian Constitutional Article ${artA} and Article ${artB}. 
+    Apply the 'Pehle vs Aaj' framework:
+    1. Historical pre-constitutional vacuum related to these topics.
+    2. The contemporary power and synergy between these two articles.
+    3. Practical impact on a modern citizen's life.
+    Language: ${context.language}. Provide citations where applicable.`;
+    
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n ${specificPrompt} \n\n Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
     });
   },
 
-  async askEraComparison(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+  async generateDynamicGreeting(context: LocalContext, profile?: UserProfile): Promise<string> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const timeOfDay = new Date().getHours() < 12 ? "Morning" : new Date().getHours() < 17 ? "Afternoon" : "Evening";
+    const userContext = profile ? `User: ${profile.fullName}, City: ${profile.city}` : "Citizen";
+    
+    const prompt = `Create a dignified greeting for ${userContext} in ${context.language}. 
+    Mention one historical-to-modern legal milestone relevant to ${timeOfDay}. 
+    Keep it under 40 words and use your feminine persona grammar.`;
+    
+    const res = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
+    });
+    return res.text || "नमस्ते! नागरिक सेतु में आपका स्वागत है। मैं आपकी सहायता के लिए तैयार हूँ।";
+  },
+
+  async askSanskriti(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Task: Compare 'Pehle' (Past Outdated Customs/Laws) with 'Aaj' (Modern Samvidhan/Rights) for the subject: ${query}. Present this as a detailed text-based educational lesson. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-  },
-
-  async getQueryTimeline(query: string, context: LocalContext): Promise<TimelineEvent[]> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `Create a timeline of 5 key historical transitions from 'Pehle' to 'Aaj' for: ${query}. Return as JSON. Language: ${context.language}.`,
+      contents: query,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              year: { type: Type.STRING },
-              event: { type: Type.STRING },
-              description: { type: Type.STRING }
-            },
-            required: ["year", "event", "description"]
-          }
-        }
+        systemInstruction: PERSONA_INSTRUCTION(context.language),
+        tools: [{ googleSearch: {} }]
       }
-    });
-    return safeParseJson(response.text) || [];
-  },
-
-  async fetchConstitutionalTimeline(context: LocalContext): Promise<TimelineEvent[]> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `Create a timeline of 6 critical milestones in the history of the Indian Constitution (from Drafting Committee to major modern amendments). Return as JSON. Language: ${context.language}.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              year: { type: Type.STRING },
-              event: { type: Type.STRING },
-              description: { type: Type.STRING }
-            },
-            required: ["year", "event", "description"]
-          }
-        }
-      }
-    });
-    return safeParseJson(response.text) || [];
-  },
-
-  async explainArticle(articleNum: string, context: LocalContext): Promise<GenerateContentResponse> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Explain Article ${articleNum} of the Indian Constitution. 
-      What does it say? How does it protect a common citizen 'Aaj'? 
-      Compare its impact with the lack of such rights 'Pehle'. 
-      Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-  },
-
-  async getLocalInfo(query: string, location: any, context: LocalContext): Promise<GenerateContentResponse> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Law/Constitution inquiry for 'Aaj' (present) at ${context.city || 'India'}: ${query}. Compare with how it was 'Pehle' (past). Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-  },
-
-  async searchCurrentEvents(query: string, context: LocalContext): Promise<GenerateContentResponse> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Investigative report for 'Aaj Kya Chal Raha Hai' regarding: ${query}. Focus on the connection to civic rights and 'Samvidhan'. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
     });
   },
 
   async askUniversalAI(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Education Request: ${query}. Use the 'Pehle vs Aaj' framework to explain the transition from old systems to the modern Constitution. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-  },
-
-  async fetchTrendingNews(context: LocalContext): Promise<GenerateContentResponse> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `List 5 major current events ('Aaj Kya Chal Raha Hai') that impact citizen rights or state laws in ${context.country}. Focus on educational context. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-  },
-
-  async generateDailyEdition(context: LocalContext): Promise<any> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Create a daily digital ePaper for 'NagrikSetu'. Sections: 1. Lead Story (Aaj), 2. Pehle vs Aaj (History comparison), 3. Local Laws Exposed (Outdated rules debunked), 4. Samvidhan Fact. Focus on education and text-based deep analysis. Language: ${context.language}.`;
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            leadStory: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, subHeadline: { type: Type.STRING }, content: { type: Type.STRING } } },
-            briefs: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, location: { type: Type.STRING } } } },
-            pehleVsAaj: { type: Type.OBJECT, properties: { topic: { type: Type.STRING }, contrastText: { type: Type.STRING } } },
-            editorial: { type: Type.STRING },
-            legalBulletin: { type: Type.STRING },
-            marketPulse: { type: Type.STRING }
-          },
-          required: ["leadStory", "briefs", "pehleVsAaj", "editorial", "legalBulletin", "marketPulse"]
-        },
-        tools: [{ googleSearch: {} }],
+      model: "gemini-3-flash-preview",
+      contents: query,
+      config: { 
+        systemInstruction: PERSONA_INSTRUCTION(context.language),
+        tools: [{ googleSearch: {} }] 
       }
     });
-    return safeParseJson(response.text) || {};
   },
 
   async fetchSectionSpotlight(section: string, context: LocalContext): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const res = await ai.models.generateContent({ 
-      model: "gemini-3-pro-preview", 
-      contents: `${PERSONA_INSTRUCTION} Provide a brief insightful education spotlight about ${section} (Comparing Pehle vs Aaj).` 
+      model: "gemini-3-flash-preview", 
+      contents: `Provide an expert spotlight on '${section}'. Focus on a pivotal 'Pehle vs Aaj' transition that defines this area.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
     });
     return res.text || "";
+  },
+
+  async generateDailyEdition(context: LocalContext): Promise<any> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Create a Daily ePaper JSON in ${context.language}. Include: 
+    - leadStory: Today's top civic news with historical impact.
+    - briefs: 3-4 global news summaries.
+    - pehleVsAaj: A dedicated column comparing a historical legal status vs today's law.
+    - editorial: A philosophical closing thought.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }] 
+      }
+    });
+    return safeParseJson(response.text) || {};
   },
 
   async getFollowUpSuggestions(topic: string, content: string, context: LocalContext): Promise<string[]> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const res = await ai.models.generateContent({ 
-      model: "gemini-3-pro-preview", 
-      contents: `Based on the educational topic ${topic}, suggest 3 intrigue-filled follow-up questions related to Global History, Local Laws Exposed, or Samvidhan. JSON format.`, 
+      model: "gemini-3-flash-preview", 
+      contents: `Suggest 3 deep-dive follow-up questions about ${topic} using the Pehle vs Aaj framework. Return JSON { "suggestions": [] }.`, 
       config: { 
-        responseMimeType: "application/json", 
-        responseSchema: { type: Type.OBJECT, properties: { suggestions: { type: Type.ARRAY, items: { type: Type.STRING } } } } 
+        responseMimeType: "application/json"
       } 
     });
     const parsed = safeParseJson(res.text);
     return parsed?.suggestions || [];
   },
 
+  async scanTrends(context: LocalContext, state?: string): Promise<TrendItem[]> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const stateContext = state ? `for the state of ${state}, India` : `across India`;
+    const prompt = `Identify top 5 trending legal or civic topics ${stateContext}. Return JSON ARRAY of {topic, relevance, riskLevel}.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { 
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }] 
+      }
+    });
+    return safeParseJson(response.text) || [];
+  },
+
+  async generateSocialPost(topic: string, context: LocalContext): Promise<string> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Write an educational social post about ${topic} in ${context.language}. Use the 'Pehle vs Aaj' narrative. Include hashtags. Focus on citizen empowerment.`;
+    const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt, config: { systemInstruction: PERSONA_INSTRUCTION(context.language) } });
+    return response.text || "";
+  },
+
+  async analyzeFamilyInheritance(userName: string, tree: FamilyMember[], context: LocalContext): Promise<string> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Analyze this family tree for ${userName}: ${JSON.stringify(tree)}. Explain inheritance rights under current Indian law (Aaj) vs historical customary biases (Pehle).`;
+    const res = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
+    });
+    return res.text || "";
+  },
+
   async generateDailyGrowth(context: LocalContext): Promise<any> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} Provide a 'Nagrik Sadhana' growth plan: 1. Education Affirmation, 2. Strategy for Pehle vs Aaj, 3. Samvidhan Logic Puzzle, 4. Ethics Habit. JSON format.`,
+      model: "gemini-3-flash-preview",
+      contents: `Generate Nagrik Sadhana JSON: affirmation, historical strategy, logic puzzle, and civic habit. Language: ${context.language}.`,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            affirmation: { type: Type.STRING },
-            strategy: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, source: { type: Type.STRING }, content: { type: Type.STRING } } },
-            logicPuzzle: { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctIndex: { type: Type.NUMBER }, explanation: { type: Type.STRING } } },
-            ethicsHabit: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, action: { type: Type.STRING } } }
-          },
-          required: ["affirmation", "strategy", "logicPuzzle", "ethicsHabit"]
-        }
+        responseMimeType: "application/json"
       }
     });
     return safeParseJson(response.text) || {};
   },
 
-  async getLeaderboardData(userPoints: number, userName: string): Promise<LeaderboardEntry[]> {
+  async findRightDepartment(problem: string, profile: any, context: LocalContext): Promise<any> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Analyze problem: "${problem}". Provide: Correct Govt Dept, steps, and helpful tips. Compare historical inefficiency (Pehle) vs modern digital transparency (Aaj). Return JSON.`;
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate a simulated education leaderboard for 'Learn and Earn' system. User is ${userName} with ${userPoints} points. Total 10 entries. JSON format.`,
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              rank: { type: Type.NUMBER },
-              name: { type: Type.STRING },
-              points: { type: Type.NUMBER },
-              badge: { type: Type.STRING },
-              isCurrentUser: { type: Type.BOOLEAN }
-            },
-            required: ["rank", "name", "points", "badge"]
-          }
-        }
+        tools: [{ googleSearch: {} }]
       }
+    });
+    return safeParseJson(response.text);
+  },
+
+  async analyzeJusticePendency(context: LocalContext): Promise<any> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Expert analysis on legal pendency in India. Compare feudal grievance speed (Pehle) vs constitutional litigation volume (Aaj). Return JSON with stats and insights.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+    return safeParseJson(response.text);
+  },
+
+  async classifyRisk(content: string, context: LocalContext): Promise<any> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Assess risk of this content for a public citizen portal: "${content}". Return JSON {riskLevel, explanation}. Language: ${context.language}.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+    return safeParseJson(response.text);
+  },
+
+  async summarizeForAdmin(content: string, context: LocalContext): Promise<any> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Summarize for Admin dossier: "${content}". Return JSON {topic, purpose, riskLevel, recommendation, reason}.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+    return safeParseJson(response.text);
+  },
+
+  async askEraComparison(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Deep historical comparison for: "${query}". Explicitly contrast the 'Pehle' (historical context) and 'Aaj' (modern constitutional/legal status).`;
+    return await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: PERSONA_INSTRUCTION(context.language),
+        tools: [{ googleSearch: {} }]
+      }
+    });
+  },
+
+  async getQueryTimeline(query: string, context: LocalContext): Promise<TimelineEvent[]> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Generate a historical evolution timeline for: ${query}. Return JSON array of {year, event, description}.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
     return safeParseJson(response.text) || [];
   },
 
-  async getWeeklyCompetition(context: LocalContext): Promise<Competition> {
+  async askPillar(pillar: string, query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
+    const prompt = `Expert inquiry on Pillar: ${pillar}. Query: ${query}. Apply the Pehle vs Aaj analytical model.`;
+    return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `Create a 'Nagrik Pratiyogita' (Weekly Contest) theme comparing Global History and Samvidhan for ${context.country}. JSON format.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            description: { type: Type.STRING },
-            theme: { type: Type.STRING },
-            rules: { type: Type.ARRAY, items: { type: Type.STRING } },
-            prizePoints: { type: Type.NUMBER }
-          },
-          required: ["title", "description", "theme", "rules", "prizePoints"]
-        }
-      }
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
     });
-    return safeParseJson(response.text) || ({} as Competition);
   },
 
-  async generateQuiz(topic: string, context: LocalContext): Promise<QuizQuestion[]> {
+  async explainArticle(article: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
+    const prompt = `Explain Article ${article} of the Indian Constitution. Use the 'Pehle' (historical absence/oppression) vs 'Aaj' (present constitutional shield) framework.`;
+    return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `Generate 5 education quiz questions about: ${topic} (History & Constitution). JSON format.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              question: { type: Type.STRING },
-              options: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correctAnswerIndex: { type: Type.NUMBER },
-              explanation: { type: Type.STRING }
-            },
-            required: ["question", "options", "correctAnswerIndex", "explanation"]
-          }
-        }
-      }
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
+    });
+  },
+
+  async getLocalInfo(query: string, location: any, context: LocalContext): Promise<GenerateContentResponse> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Explore local citizen context for: ${query}. Language: ${context.language}.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
+    });
+  },
+
+  async fetchConstitutionalTimeline(context: LocalContext): Promise<TimelineEvent[]> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Pivotal milestones in Indian Constitutional History. Return JSON array. Language: ${context.language}.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
     return safeParseJson(response.text) || [];
-  },
-
-  async analyzeFinancialSafety(query: string, context: LocalContext): Promise<GenerateContentResponse> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Educational Financial Advisory: ${query}. Focus on protecting wealth and citizen assets via 'Aaj' (present) legal frameworks.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
-  },
-
-  async analyzeCitizenRights(query: string, context: LocalContext): Promise<GenerateContentResponse> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Detailed text lesson on Citizen Rights: ${query}. Compare with feudal past.`,
-      config: { tools: [{ googleSearch: {} }] }
-    });
   },
 
   async editStudyImage(prompt: string, base64: string, mime: string): Promise<string | null> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          { inlineData: { data: base64, mimeType: mime } },
-          { text: prompt },
-        ],
-      },
+      contents: { parts: [{ inlineData: { data: base64, mimeType: mime } }, { text: prompt }] }
     });
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      }
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
     return null;
   },
 
-  async analyzeCrimePatterns(params: { details: string; time: string; direction: string }, context: LocalContext): Promise<any> {
+  async searchCurrentEvents(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: query,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
+    });
+  },
+
+  async analyzeCrimePatterns(data: any, context: LocalContext): Promise<any> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Professional criminological pattern analysis for: ${JSON.stringify(data)}. Compare with historical criminal law. Return JSON.`;
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Analyze crime patterns for these details: ${params.details}, time: ${params.time}, direction: ${params.direction}. JSON format.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            patternIdentified: { type: Type.STRING },
-            chronoAnalysis: { type: Type.STRING },
-            spatialInsight: { type: Type.STRING },
-            nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["title", "patternIdentified", "chronoAnalysis", "spatialInsight", "nextSteps"]
-        }
-      }
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
     return safeParseJson(response.text);
   },
@@ -385,210 +369,167 @@ export const geminiService = {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Create a digital biography/memoir based on these notes: ${notes}. Language: ${context.language}.`,
+      contents: notes,
+      config: { systemInstruction: `Compose a dignified and respectful historical autobiography summary in ${context.language}.` }
     });
-  },
-
-  async getSchemerInsight(query: string, context: LocalContext): Promise<SchemerInsight | null> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Provide behavioral insight about: ${query}. Return as JSON.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            era: { type: Type.STRING },
-            tactic: { type: Type.STRING },
-            lesson: { type: Type.STRING },
-            warningSigns: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["name", "era", "tactic", "lesson", "warningSigns"]
-        }
-      }
-    });
-    return safeParseJson(response.text);
   },
 
   async analyzeModernScam(query: string, context: LocalContext): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Analyze this modern scam or behavioral case: ${query}. Language: ${context.language}.`,
+    const res = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Analyze modern scam/risk for: ${query}. Relate to historical deception methods (Pehle) vs digital complexity (Aaj).`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
     });
-    return response.text || "";
+    return res.text || "";
   },
 
   async explainCrimeScene(query: string, context: LocalContext): Promise<any> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Criminological/Forensic analysis for: ${query}. Return JSON.`;
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Explain this crime scene or investigation theory: ${query}. JSON format.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            simpleAnalogy: { type: Type.STRING },
-            theoryExplained: { type: Type.STRING },
-            motiveAnalysis: { type: Type.STRING },
-            clues: { type: Type.ARRAY, items: { type: Type.STRING } },
-            forensicFacts: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["title", "simpleAnalogy", "theoryExplained", "motiveAnalysis", "clues", "forensicFacts"]
-        }
-      }
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
     return safeParseJson(response.text);
   },
 
   async analyzeMissingLink(query: string, context: LocalContext): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
+    const res = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Find the missing link between history and this modern problem: ${query}. Language: ${context.language}.`,
+      contents: `Find the missing historical-to-modern link for: ${query}.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
     });
-    return response.text || "";
+    return res.text || "";
   },
 
   async analyzeMarketPosition(context: LocalContext): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Analyze the market position and vision of NagrikSetu for the ${context.country} market. Language: ${context.language}.`,
+    const res = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: "Analyze the strategic impact of NagrikSetu on digital democracy. Language: ${context.language}.",
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
     });
-    return response.text || "";
+    return res.text || "";
   },
 
   async askReligiousWisdom(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Provide interfaith religious wisdom about: ${query}. Focus on humanity. Language: ${context.language}.`,
+      contents: query,
+      config: { systemInstruction: `You are 'Gyan Guru'. Analyze humanitarian values across eras. Respond in ${context.language}.` }
     });
   },
 
   async askCulturalWisdom(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Provide cultural heritage insight about: ${query}. Language: ${context.language}.`,
+      model: "gemini-3-flash-preview",
+      contents: query,
+      config: { systemInstruction: `Provide expert cultural and heritage analysis in ${context.language}.` }
     });
   },
 
-  async getExplorerInfo(location: { lat?: number; lng?: number }, context: LocalContext, query?: string): Promise<GenerateContentResponse> {
+  async getExplorerInfo(location: any, context: LocalContext, query?: string): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = query ? `Explore: ${query}` : `Explore my location: ${context.city || 'India'}`;
+    const prompt = query || `Identify the historical and constitutional significance of the area around ${location.lat}, ${location.lng}`;
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Providing a deep intelligence report for: ${prompt}. Use Google Search. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
     });
   },
 
   async fetchTodayInHistory(context: LocalContext): Promise<TimelineEvent[]> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const today = new Date().toLocaleDateString();
+    const prompt = `Significant civic or legal milestones for today's date in world history. Return JSON array. Language: ${context.language}.`;
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `List 5 key historical events that happened on today's date (${today}) in ${context.country}. Return as JSON. Language: ${context.language}.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              year: { type: Type.STRING },
-              event: { type: Type.STRING },
-              description: { type: Type.STRING }
-            },
-            required: ["year", "event", "description"]
-          }
-        }
-      }
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
     return safeParseJson(response.text) || [];
   },
 
-  async generateApplication(params: { receiver: string; subject: string; details: string; name: string }, context: LocalContext): Promise<string> {
+  async generateApplication(data: any, context: LocalContext): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Draft a professional application letter. To: ${params.receiver}. Subject: ${params.subject}. Details: ${params.details}. From: ${params.name}. Language: ${context.language}.`,
+    const prompt = `Compose a formal and professional citizen representation in ${context.language}.
+    Recipent: ${data.receiver}
+    Subject: ${data.subject}
+    Details: ${data.details}
+    Author: ${data.name}
+    Tone: Authoritative, Constitutional, and Respectful. Use appropriate legal terminology.`;
+
+    const res = await ai.models.generateContent({ 
+      model: "gemini-3-pro-preview", 
+      contents: prompt 
     });
-    return response.text || "";
+    return res.text || "";
   },
 
-  async fetchLegalEncyclopedia(query: string, context: LocalContext): Promise<any[]> {
+  async fetchLegalEncyclopedia(topic: string, context: LocalContext): Promise<any[]> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Top 5 statutes/laws related to: ${topic}. Return JSON array of {title, year, purpose, benefit}.`;
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `Provide an encyclopedia list of key laws related to: ${query}. JSON format. Language: ${context.language}.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              year: { type: Type.STRING },
-              purpose: { type: Type.STRING },
-              benefit: { type: Type.STRING }
-            },
-            required: ["title", "year", "purpose", "benefit"]
-          }
-        }
-      }
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
     });
     return safeParseJson(response.text) || [];
   },
 
   async analyzeGovSchemes(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Identify official Indian Government schemes related to: "${query}". Provide benefits and official portal links via grounding.`;
+    
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Find and analyze relevant government schemes for: ${query}. Use Google Search. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
+      contents: prompt,
+      config: { 
+        systemInstruction: PERSONA_INSTRUCTION(context.language), 
+        tools: [{ googleSearch: {} }] 
+      }
     });
   },
 
   async fetchGlobalCulture(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Expert cultural and tourism analysis for: ${query}. Focus on heritage and family lifestyle.`;
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Provide a global cultural and tourism report for: ${query}. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
+      contents: prompt,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
     });
   },
 
   async explainWithAnalogy(query: string, context: LocalContext): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Explain the following with a deep analogy: ${query}. Language: ${context.language}.`,
+    const res = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Explain using a historical vs modern analogy: ${query}.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
     });
-    return response.text || "";
+    return res.text || "";
   },
 
   async generateResolutionStrategy(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Generate a legal/procedural resolution strategy for: ${query}. Language: ${context.language}.`,
-      config: { tools: [{ googleSearch: {} }] }
+      contents: `Provide a constitutional roadmap/strategy to resolve: ${query}.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
     });
   },
 
   async generateNatureAnthem(query: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Compose a nature anthem or poem for: ${query}. Language: ${context.language}.`,
+      model: "gemini-3-flash-preview",
+      contents: `Compose a poetic nature anthem for: ${query}.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language) }
     });
   },
 
@@ -596,88 +537,91 @@ export const geminiService = {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Analyze the ecological and legal impact of: ${query}. Use Google Search. Language: ${context.language}.`,
+      contents: `Environmental legal audit for: ${query}. Use grounding for facts.`,
+      config: { systemInstruction: PERSONA_INSTRUCTION(context.language), tools: [{ googleSearch: {} }] }
+    });
+  },
+
+  async fetchTrendingNews(context: LocalContext): Promise<GenerateContentResponse> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Summarize 3 trending legal/civic events in India today.`,
       config: { tools: [{ googleSearch: {} }] }
     });
   },
 
-  async findRightDepartment(problem: string, profile: any, context: LocalContext): Promise<any> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Find the correct government department and procedure for this problem: ${problem}. User profile: ${JSON.stringify(profile)}. JSON format.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            department: { type: Type.STRING },
-            officeLocation: { type: Type.STRING },
-            helpline: { type: Type.STRING },
-            docs: { type: Type.ARRAY, items: { type: Type.STRING } },
-            steps: { type: Type.ARRAY, items: { type: Type.STRING } },
-            law: { type: Type.STRING },
-            tip: { type: Type.STRING }
-          },
-          required: ["department", "officeLocation", "helpline", "docs", "steps", "law", "tip"]
-        }
-      }
-    });
-    return safeParseJson(response.text);
+  async getLeaderboardData(userPoints: number, userName: string): Promise<LeaderboardEntry[]> {
+    return [
+      { rank: 1, name: "Krishna", points: 5400, badge: "Grand Master" },
+      { rank: 2, name: "Sanskriti AI", points: 4200, badge: "Legal Sentinel" },
+      { rank: 3, name: userName, points: userPoints, badge: "Scholar", isCurrentUser: true }
+    ].sort((a, b) => b.points - a.points).map((e, i) => ({ ...e, rank: i + 1 }));
   },
 
-  async analyzeJusticePendency(context: LocalContext): Promise<any> {
+  async getWeeklyCompetition(context: LocalContext): Promise<Competition> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
+    const res = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: "Generate a weekly constitutional challenge JSON.",
+      config: { responseMimeType: "application/json" }
+    });
+    return safeParseJson(res.text) || { title: "Weekly Challenge", description: "Learn and grow.", theme: "Civics", rules: [], prizePoints: 500 };
+  },
+
+  async generateQuiz(prompt: string, context: LocalContext): Promise<QuizQuestion[]> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const res = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n Provide data analysis on Indian legal pendency. JSON format.`,
+      contents: `${prompt}. Return JSON array of 5 questions.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return safeParseJson(res.text) || [];
+  },
+
+  async getSchemerInsight(query: string, context: LocalContext): Promise<SchemerInsight> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const res = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: `Behavioral audit of: ${query}. Return JSON.`,
+      config: { responseMimeType: "application/json" }
+    });
+    return safeParseJson(res.text);
+  },
+
+  async analyzeFinancialSafety(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: query,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            totalCases: { type: Type.STRING },
-            categories: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  count: { type: Type.STRING },
-                  reason: { type: Type.STRING }
-                }
-              }
-            },
-            rootCauses: { type: Type.ARRAY, items: { type: Type.STRING } },
-            solutions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            mentorMessage: { type: Type.STRING }
-          },
-          required: ["totalCases", "categories", "rootCauses", "solutions", "mentorMessage"]
-        }
+        systemInstruction: "You are a professional financial safety auditor. Analyze risks and provide guidance in " + context.language,
+        tools: [{ googleSearch: {} }]
       }
     });
-    return safeParseJson(response.text);
+  },
+
+  async analyzeCitizenRights(query: string, context: LocalContext): Promise<GenerateContentResponse> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: query,
+      config: {
+        systemInstruction: PERSONA_INSTRUCTION(context.language),
+        tools: [{ googleSearch: {} }]
+      }
+    });
   },
 
   async compareGlobalRights(countryA: string, countryB: string, context: LocalContext): Promise<GenerateContentResponse> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Task: Detailed country comparison between ${countryA} and ${countryB}.
-    Focus Areas:
-    1. Human Rights (Freedom of speech, right to privacy, legal protections).
-    2. Public Facilities (Healthcare standard, quality of education, public transport).
-    3. Constitutional Structure (Basic rights framework).
-    
-    Instructions:
-    - Present a comparative text analysis.
-    - Explain 'Pehle' vs 'Aaj' context for both where relevant.
-    - Provide a summary of which areas each country excels in.
-    - Use Google Search for up-to-date information on human rights indexes and current facilities.
-    - Language: ${context.language}.`;
-
     return await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `${PERSONA_INSTRUCTION} \n\n ${prompt}`,
-      config: { tools: [{ googleSearch: {} }] }
+      contents: `Expert comparison between ${countryA} and ${countryB}. Focus on civil liberties and constitutional structure.`,
+      config: {
+        systemInstruction: PERSONA_INSTRUCTION(context.language),
+        tools: [{ googleSearch: {} }]
+      }
     });
   }
 };
